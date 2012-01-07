@@ -1,0 +1,148 @@
+<?xml version="1.0" ?>
+
+<project name="NovoPrime" default="distribute" basedir=".">
+
+    <property file="plugin.properties"/>
+    <property name="build" location="build"/>
+    <property name="classes" location="classes"/>
+    <property name="src" location="src"/>
+
+    <path id="classpath">
+        <fileset dir="../GeneiousFiles/lib">
+            <include name="GeneiousPublicAPI.jar"/>
+            <include name="jdom.jar"/>
+            <include name="jebl.jar"/>
+        </fileset>
+    </path>
+
+    <target name= "distribute" depends="build">
+        <copy file="${build}/${short-plugin-name}.jar" tofile="${build}/${short-plugin-name}.gplugin"/>
+        <echo message="Created ${build}/${short-plugin-name}.gplugin"/>
+
+        <!--If your plugin consists of a folder you should build it into
+        a zip file with extension gplugin. See commented example below.
+        Remove above line and uncomment these to use-->
+        <!--
+        <zip zipfile="${build}/${short-plugin-name}.gplugin">
+            <fileset dir="${build}/${plugin-name}"/>
+        </zip>
+        -->
+    </target>
+
+    <target name="build" depends="compile">
+        <jar jarfile="${build}/${short-plugin-name}.jar">
+            <fileset dir="${classes}"/>
+            <fileset dir="">
+                <include name="plugin.properties"/>
+            </fileset>
+        </jar>
+
+        <!--build example for folder type plugin. Remove above
+        lines and uncomment these to use-->
+        <!--
+        <jar jarfile="${build}/${short-plugin-name}.jar">
+            <fileset dir="${classes}"/>
+        </jar>
+        <mkdir dir="${build}/${plugin-name}"/>
+        <copy todir="${build}/${plugin-name}">
+            <fileset dir="${build}">
+                <include name="ExtraFiles"/>
+                <include name="ExtraFiles/*"/>
+                <include name="${short-plugin-name}.jar"/>
+            </fileset>
+            <fileset dir="docs">
+                <include name="readme.txt"/>
+            </fileset>
+        </copy>
+        -->
+    </target>
+
+    <target name="compile" depends="prepare">
+        <javac destdir="${classes}" debug="true" target="1.5">
+            <classpath refid="classpath"/>
+            <src path="${src}"/>
+        </javac>
+    </target>
+
+    <target name="prepare">
+        <mkdir dir="${build}"/>
+        <mkdir dir="${classes}"/>
+    </target>
+
+    <target name="clean">
+        <delete dir="${build}"/>
+        <delete dir="${classes}"/>
+    </target>
+
+    <target name="copyPluginAndRename">
+        <!-- This task renames this plugin, including source code files and build scripts.
+        To use it, enter the appropriate values for the first 3 properties and then run it.
+        The 3rd property value must be identical to the second except with "." replaced with "/" -->
+        <property name="newPluginName" value="NovoPrime"/>
+        <property name="newPluginPackageName" value="com.gggenomics.novoprime"/>
+        <property name="newPluginPackagePath" value="com/gggenomics/novoprime"/>
+
+        <property name="oldPluginName" value="NovoPrime"/>
+        <property name="oldPluginPackageName" value="com.gggenomics.novoprime"/>
+        <property name="oldPluginPackagePath" value="com/gggenomics/novoprime"/>
+        <!--It doesn't appear we can automatically replace "." with "/" in a property in basic ant without relying on the ant-contrib package being installed-->
+
+        <property name="destDir" value="../${newPluginName}"/>
+
+        <fail message="You must set the newPluginName property in the ant task XML before running this">
+            <condition><equals arg1="${oldPluginName}" arg2="${newPluginName}"/></condition>
+        </fail>
+        <fail message="You must set the newPluginPackageName property in the ant task XML before running this">
+            <condition><equals arg1="${oldPluginPackageName}" arg2="${newPluginPackageName}"/></condition>
+        </fail>
+        <fail message="You must set the newPluginPackagePath property in the ant task XML before running this">
+            <condition><equals arg1="${oldPluginPackagePath}" arg2="${newPluginPackagePath}"/></condition>
+        </fail>
+
+        <copy todir="${destDir}">
+            <fileset dir="."/>
+        </copy>
+
+        <replace dir="${destDir}" token="${oldPluginPackageName}" value="${newPluginPackageName}"/>
+        <replace dir="${destDir}" token="${oldPluginPackagePath}" value="${newPluginPackagePath}"/>
+        <replace dir="${destDir}" token="${oldPluginName}" value="${newPluginName}"/>
+
+        <move todir="${destDir}/src/${newPluginPackagePath}">
+            <fileset dir="${destDir}/src/${oldPluginPackagePath}"/>
+        </move>
+
+        <move todir="${destDir}/src/${newPluginPackagePath}">
+            <fileset dir="${destDir}/src/${newPluginPackagePath}"/>
+            <mapper type="glob" from="${oldPluginName}*.java" to="${newPluginName}*.java"/>
+        </move>
+
+        <move todir="${destDir}">
+            <fileset dir="${destDir}"/>
+            <mapper type="glob" from="${oldPluginName}.*" to="${newPluginName}.*"/>
+        </move>
+
+        <!-- edit intellij project files -->
+
+        <copy todir="../.ideaBackup" overwrite="true">
+            <fileset dir="../.idea"/>
+        </copy>
+
+        <copy file="../.idea/modules.xml" tofile="../.idea/modules.xml.new" overwrite="true">
+            <filterchain>
+                <tokenfilter>
+                    <replaceregex byline="true" flags="s"
+                                  pattern="(.*)${oldPluginName}/${oldPluginName}(.*)${oldPluginName}/${oldPluginName}(.*)$"
+                                  replace="\0&#10;\1${newPluginName}/${newPluginName}\2${newPluginName}/${newPluginName}\3"/>
+                </tokenfilter>
+            </filterchain>
+        </copy>
+        <fixcrlf file="../.idea/modules.xml.new"/>
+        <move file="../.idea/modules.xml.new" tofile="../.idea/modules.xml" overwrite="true"/>
+
+        <copy file="../.idea/runConfigurations/${oldPluginName}.xml" tofile="../.idea/runConfigurations/${newPluginName}.xml" overwrite="true"/>
+        <replace file="../.idea/runConfigurations/${newPluginName}.xml" token="${oldPluginPackageName}" value="${newPluginPackageName}"/>
+        <replace file="../.idea/runConfigurations/${newPluginName}.xml" token="${oldPluginName}" value="${newPluginName}"/>
+
+    </target>
+
+</project>
