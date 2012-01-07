@@ -1,6 +1,7 @@
 package com.gggenomics.novoprime;
 
 import com.biomatters.geneious.publicapi.components.Dialogs;
+import com.biomatters.geneious.publicapi.components.GButton;
 import com.biomatters.geneious.publicapi.components.GEditorPane;
 import com.biomatters.geneious.publicapi.documents.AnnotatedPluginDocument;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
@@ -16,6 +17,7 @@ import org.virion.jam.util.SimpleListener;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.beans.FeatureDescriptor;
 import java.util.Arrays;
 import java.util.List;
 
@@ -67,12 +69,105 @@ public class NovoPrimeOptions extends Options {
             }
         });
 
-    }
-    //TODO: remove this!!!
-    public void testThisShit(AnnotatedPluginDocument[] mydocs) {
-        for (AnnotatedPluginDocument annotatedPluginDocument:mydocs) {
-            System.out.println("whatever");
-        }
+        verifPrimerLengthMinOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthOptimOption.getValue()) {
+                    verifPrimerLengthOptimOption.setValue(verifPrimerLengthMinOption.getValue());
+                }
+                if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
+                    verifPrimerLengthMaxOption.setValue(verifPrimerLengthMinOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerLengthOptimOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerLengthOptimOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
+                    verifPrimerLengthMaxOption.setValue(verifPrimerLengthOptimOption.getValue());
+                }
+                if (verifPrimerLengthOptimOption.getValue() < verifPrimerLengthMinOption.getValue()) {
+                    verifPrimerLengthMinOption.setValue(verifPrimerLengthOptimOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerLengthMaxOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthMinOption.getValue()) {
+                    verifPrimerLengthMinOption.setValue(verifPrimerLengthMaxOption.getValue());
+                }
+                if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthOptimOption.getValue()) {
+                    verifPrimerLengthOptimOption.setValue(verifPrimerLengthMaxOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerTmMinOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerTmMinOption.getValue() > verifPrimerTmOptimOption.getValue()) {
+                    verifPrimerTmOptimOption.setValue(verifPrimerTmMinOption.getValue());
+                }
+                if (verifPrimerTmMinOption.getValue() > verifPrimerTmMaxOption.getValue()) {
+                    verifPrimerTmMaxOption.setValue(verifPrimerTmMinOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerTmOptimOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerTmOptimOption.getValue() > verifPrimerTmMaxOption.getValue()) {
+                    verifPrimerTmMaxOption.setValue(verifPrimerTmOptimOption.getValue());
+                }
+                if (verifPrimerTmOptimOption.getValue() < verifPrimerTmMinOption.getValue()) {
+                    verifPrimerTmMinOption.setValue(verifPrimerTmOptimOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerTmMaxOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerTmMaxOption.getValue() < verifPrimerTmMinOption.getValue()) {
+                    verifPrimerTmMinOption.setValue(verifPrimerTmMaxOption.getValue());
+                }
+                if (verifPrimerTmMaxOption.getValue() < verifPrimerTmOptimOption.getValue()) {
+                    verifPrimerTmOptimOption.setValue(verifPrimerTmMaxOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerGCMinOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerGCMinOption.getValue() > verifPrimerGCOptimOption.getValue()) {
+                    verifPrimerGCOptimOption.setValue(verifPrimerGCMinOption.getValue());
+                }
+                if (verifPrimerGCMinOption.getValue() > verifPrimerGCMaxOption.getValue()) {
+                    verifPrimerGCMaxOption.setValue(verifPrimerGCMinOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerGCOptimOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerGCOptimOption.getValue() > verifPrimerGCMaxOption.getValue()) {
+                    verifPrimerGCMaxOption.setValue(verifPrimerGCOptimOption.getValue());
+                }
+                if (verifPrimerGCOptimOption.getValue() < verifPrimerGCMinOption.getValue()) {
+                    verifPrimerGCMinOption.setValue(verifPrimerGCOptimOption.getValue());
+                }
+            }
+        });
+
+        verifPrimerGCMaxOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerGCMaxOption.getValue() < verifPrimerGCMinOption.getValue()) {
+                    verifPrimerGCMinOption.setValue(verifPrimerGCMaxOption.getValue());
+                }
+                if (verifPrimerGCMaxOption.getValue() < verifPrimerGCOptimOption.getValue()) {
+                    verifPrimerGCOptimOption.setValue(verifPrimerGCMaxOption.getValue());
+                }
+            }
+        });
+
     }
 
     // Option blocks
@@ -99,8 +194,11 @@ public class NovoPrimeOptions extends Options {
             new Options.OptionValue(ORF, "ORF"),
             new Options.OptionValue(GENE, "gene"),
             new Options.OptionValue(OTHER, "other")};
-        featTypeOption = addComboBoxOption("featTypes",
-                "Feature type:", Arrays.asList(featTypeComboBoxList), featTypeComboBoxList[0]);
+        beginAlignHorizontally("Feature Type:", false);
+        featTypeOption = addComboBoxOption("featTypes", "",
+                Arrays.asList(featTypeComboBoxList), featTypeComboBoxList[0]);
+        addCustomComponent(getFeatSubsetSelection());
+        endAlignHorizontally();
         // set text to display on hover
         featTypeOption.setDescription("Select which feature type to process: CDS, ORF, gene or other");
         }
@@ -211,6 +309,23 @@ public class NovoPrimeOptions extends Options {
     }
 */
 
+    // Get subset selection via popup table
+
+    private String selectFeatSubset() {
+        return "This dialog offers the possibility to (de)select a subset of feature annotations.";
+}
+    private JComponent getFeatSubsetSelection() {
+        return new JButton(new AbstractAction("Select subset...") {
+            public void actionPerformed(ActionEvent e) {
+                launchFeatSubsetSelection();
+            }
+        });
+    }
+    private void launchFeatSubsetSelection() {
+        Dialogs.showMessageDialog(selectFeatSubset(), "Select subset of annotation features");
+    }
+
+
     private final String PRIMER3_URL = "http://primer3.sourceforge.net/";
 
     // Provide additional information
@@ -225,7 +340,7 @@ public class NovoPrimeOptions extends Options {
         return "This plugin makes use of the external program Primer3 by Steve Rozen and Helen Skaletsky to design " +
                 "primers.<br><br>The Primer3 package can be downloaded from <a href=\"" + PRIMER3_URL + "\">" +
                 PRIMER3_URL + "</a>.<br><br>After downloading and extracting the package, point Geneious to the " +
-                "location of the executable.";
+                "location of the executable called primer3_core.";
     }
     private JComponent getHelpButtonForLocation() {
         return new JButton(new AbstractAction("", IconUtilities.getIcons("help16.png").getIcon16()) {
