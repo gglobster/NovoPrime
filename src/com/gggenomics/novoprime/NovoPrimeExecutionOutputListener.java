@@ -4,7 +4,7 @@ import com.biomatters.geneious.publicapi.plugin.SequenceAnnotationGenerator;
 import com.biomatters.geneious.publicapi.utilities.Execution;
 
 public class NovoPrimeExecutionOutputListener extends Execution.OutputListener {
-    
+
     final SequenceAnnotationGenerator.AnnotationGeneratorResult results =
             new SequenceAnnotationGenerator.AnnotationGeneratorResult();
 

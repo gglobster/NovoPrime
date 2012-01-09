@@ -1,38 +1,36 @@
 package com.gggenomics.novoprime;
 
 import com.biomatters.geneious.publicapi.components.Dialogs;
-import com.biomatters.geneious.publicapi.components.GButton;
 import com.biomatters.geneious.publicapi.components.GEditorPane;
-import com.biomatters.geneious.publicapi.documents.AnnotatedPluginDocument;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceDocument;
-import com.biomatters.geneious.publicapi.plugin.DocumentOperationException;
 import com.biomatters.geneious.publicapi.plugin.Options;
-import com.biomatters.geneious.publicapi.plugin.SequenceAnnotationGenerator;
 import com.biomatters.geneious.publicapi.utilities.IconUtilities;
-import com.sun.xml.internal.bind.v2.TODO;
 import org.virion.jam.html.SimpleLinkListener;
 import org.virion.jam.util.SimpleListener;
 
 import javax.swing.*;
+import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.beans.FeatureDescriptor;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
 
 public class NovoPrimeOptions extends Options {
 
-    public NovoPrimeOptions(AnnotatedPluginDocument[] mydocs) {
+    public NovoPrimeOptions(SequenceDocument document) {
+
+        final SequenceDocument myDoc = document;
 
         codeLocationOptions();
-        featSelectOptions(mydocs);
+        featSelectOptions();
+        setInitialListState(myDoc);
         amplifPrimersOptions();
         verifPrimersOptions();
 
         featTypeOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
-                System.out.println(featTypeOption.getValue().getName());
+                setInitialListState(myDoc);
             }
         });
 
@@ -46,7 +44,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerDistOptimOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerDistOptimOption.getValue() > verifPrimerDistMaxOption.getValue()) {
@@ -57,7 +54,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerDistMaxOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerDistMaxOption.getValue() < verifPrimerDistOptimOption.getValue()) {
@@ -68,7 +64,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerLengthMinOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthOptimOption.getValue()) {
@@ -79,7 +74,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerLengthOptimOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerLengthOptimOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
@@ -90,7 +84,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerLengthMaxOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthMinOption.getValue()) {
@@ -101,7 +94,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerTmMinOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerTmMinOption.getValue() > verifPrimerTmOptimOption.getValue()) {
@@ -112,7 +104,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerTmOptimOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerTmOptimOption.getValue() > verifPrimerTmMaxOption.getValue()) {
@@ -123,7 +114,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerTmMaxOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerTmMaxOption.getValue() < verifPrimerTmMinOption.getValue()) {
@@ -134,7 +124,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerGCMinOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerGCMinOption.getValue() > verifPrimerGCOptimOption.getValue()) {
@@ -145,7 +134,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerGCOptimOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerGCOptimOption.getValue() > verifPrimerGCMaxOption.getValue()) {
@@ -156,7 +144,6 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
         verifPrimerGCMaxOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerGCMaxOption.getValue() < verifPrimerGCMinOption.getValue()) {
@@ -167,11 +154,16 @@ public class NovoPrimeOptions extends Options {
                 }
             }
         });
-
     }
+
+    //declare the major variable containers
+    private List<SequenceAnnotation> featList = new ArrayList<SequenceAnnotation>();
+    private List<Object> maskList = new ArrayList<Object>();
+    private Object selectFeatNum = null;
 
     // Option blocks
 
+    //find the executable
     private FileSelectionOption codeLocation;
     private void codeLocationOptions() {
         beginAlignHorizontally(null, false);
@@ -181,43 +173,39 @@ public class NovoPrimeOptions extends Options {
         endAlignHorizontally();
         addDivider(""); // Add some empty space to separate this option a bit
     }
-
+    //select targets
+    JLabel actionLabel = new JLabel(selectFeatNum+" selected (of "+featList.size()+")");
     private ComboBoxOption<OptionValue> featTypeOption;
     private static final String ORF = "ORF";
     private static final String CDS = "CDS";
     private static final String GENE = "gene";
-    private static final String OTHER = "other";
-    private void featSelectOptions(AnnotatedPluginDocument[] mydocs) {
+    private static final String OTHER = "any";
+    private void featSelectOptions() {
         addDivider("Target Selection");
         Options.OptionValue[] featTypeComboBoxList = {
-            new Options.OptionValue(CDS, "CDS"), // Default
-            new Options.OptionValue(ORF, "ORF"),
-            new Options.OptionValue(GENE, "gene"),
-            new Options.OptionValue(OTHER, "other")};
+                new Options.OptionValue(CDS, "CDS"), // Default
+                new Options.OptionValue(ORF, "ORF"),
+                new Options.OptionValue(GENE, "gene"),
+                new Options.OptionValue(OTHER, "any")};
         beginAlignHorizontally("Feature Type:", false);
         featTypeOption = addComboBoxOption("featTypes", "",
                 Arrays.asList(featTypeComboBoxList), featTypeComboBoxList[0]);
-        addCustomComponent(getFeatSubsetSelection());
+        addCustomComponent(getFeatSubsetSelectionButton());
+        addCustomComponent(actionLabel);
         endAlignHorizontally();
         // set text to display on hover
-        featTypeOption.setDescription("Select which feature type to process: CDS, ORF, gene or other");
-        }
-
-
-
-    private IntegerOption amplifPrimerLengthOption;
-    private IntegerOption amplifPrimerPosStartOption;
-    private IntegerOption amplifPrimerPosStopOption;
-    private StringOption amplifPrimerFwdTailOption;
-    private StringOption amplifPrimerRevTailOption;
+        featTypeOption.setDescription("Select which feature type to process: CDS, ORF, gene or any type " +
+                "(use the 'Select subset' button to refine your selection)");
+    }
+    //tweak amplification primers parameters
     private void amplifPrimersOptions() {
         addDivider("Amplification Primers");
-        amplifPrimerLengthOption = addIntegerOption("amplifPrimerLength", "Length:", 25, 0, 100);
-        amplifPrimerFwdTailOption = addStringOption("amplifPrimerFwdTail", "Fwd Tail:", "ATTAT TEST STRING");
-        amplifPrimerRevTailOption = addStringOption("amplifPrimerRevTail", "Rev Tail:", "CCGCG TEST STRING");
+        IntegerOption amplifPrimerLengthOption = addIntegerOption("amplifPrimerLength", "Length:", 25, 0, 100);
+        StringOption amplifPrimerFwdTailOption = addStringOption("amplifPrimerFwdTail", "Fwd Tail:", "");
+        StringOption amplifPrimerRevTailOption = addStringOption("amplifPrimerRevTail", "Rev Tail:", "");
         beginAlignHorizontally("Distance From Start:", false);
-        amplifPrimerPosStartOption = addIntegerOption("amplifPrimerPosStart", "", 0, -1000, 1000);
-        amplifPrimerPosStopOption = addIntegerOption("amplifPrimerPosStop", "From Stop:", 0, -1000, 1000);
+        IntegerOption amplifPrimerPosStartOption = addIntegerOption("amplifPrimerPosStart", "", 0, -1000, 1000);
+        IntegerOption amplifPrimerPosStopOption = addIntegerOption("amplifPrimerPosStop", "From Stop:", 0, -1000, 1000);
         endAlignHorizontally();
         // set text to display on hover
         amplifPrimerLengthOption.setDescription("Specify primer length");
@@ -228,7 +216,7 @@ public class NovoPrimeOptions extends Options {
         amplifPrimerFwdTailOption.setDescription("Specify nucleotide sequence to attach as tail to the forward primer");
         amplifPrimerRevTailOption.setDescription("Specify nucleotide sequence to attach as tail to the reverse primer");
     }
-
+    //tweak verification primers parameters
     private IntegerOption verifPrimerDistMinOption;
     private IntegerOption verifPrimerDistOptimOption;
     private IntegerOption verifPrimerDistMaxOption;
@@ -281,51 +269,139 @@ public class NovoPrimeOptions extends Options {
         verifPrimerGCMaxOption.setDescription("Specify maximal GC percentage");
     }
 
-    // public methods to access option values
+    // Methods
 
-    /*public String getFeatType() {
-        return featTypeOption.getValue().getName();
-    }
-
-    // New idea
-    public List<SequenceAnnotation> getSelectFeatures(SequenceDocument seqDoc,
-                                                      NovoPrimeOptions novoprimeOptions) {
+    //initialize list of features and corresponding mask list per type
+    private void setInitialListState(SequenceDocument seqDoc) {
+        featList.clear();
+        maskList.clear();
         List<SequenceAnnotation> allAnnotations = seqDoc.getSequenceAnnotations();
-        String featType = novoprimeOptions.getFeatType();
-        if (featType == "other") {
-            System.out.println("taking all comers");   // TODO: make this pass the entire list
+        String featType = featTypeOption.getValue().getName();
+        if (featType.equals("any")) {
+            for (SequenceAnnotation oneAnnot:allAnnotations) {
+                featList.add(oneAnnot);
+                maskList.add(false);
+            }
         } else {
             for (SequenceAnnotation oneAnnot:allAnnotations) {
-                if (oneAnnot.getType() == featType) {
-                    System.out.println(featType);   // TODO: make this add the feature to the selection list
+                if (oneAnnot.getType().equals(featType)) {
+                    featList.add(oneAnnot);
+                    if (oneAnnot.getQualifierValue("NovoPrime").equals("exclude")) {
+                        maskList.add(false);
+                    } else {
+                        maskList.add(true);
+                    }
                 }
             }
         }
-        return allAnnotations;
+        selectFeatNum = countSelected();
+        actionLabel.setText(selectFeatNum+" selected (of "+featList.size()+")");
+    }
+    
+    private int countSelected() {
+        int counter = 0;
+        for (Object item:maskList) {
+            if ((Boolean) item)
+                counter +=1;
+        }
+        return counter;
     }
 
-        String getSelectOption() {
-        return featTypeOption.getValue().getName();
-    }
-*/
-
-    // Get subset selection via popup table
-
-    private String selectFeatSubset() {
-        return "This dialog offers the possibility to (de)select a subset of feature annotations.";
-}
-    private JComponent getFeatSubsetSelection() {
+    //get subset selection via popup table
+    private JComponent getFeatSubsetSelectionButton() {
         return new JButton(new AbstractAction("Select subset...") {
             public void actionPerformed(ActionEvent e) {
                 launchFeatSubsetSelection();
             }
         });
     }
+    //implementation details
     private void launchFeatSubsetSelection() {
-        Dialogs.showMessageDialog(selectFeatSubset(), "Select subset of annotation features");
+
+        final List<String> columnNames = new ArrayList<String>();
+        columnNames.add("Select");
+        columnNames.add("Locus Tag");
+        columnNames.add("Type");
+        columnNames.add("Location");
+        
+        final Vector<Vector<Object>> myDataObjects = new Vector<Vector<Object>>();
+        int counter = 0;
+        for (SequenceAnnotation oneAnnot:featList) {
+            Vector<Object> row = new Vector<Object>();
+            row.add(maskList.get(counter));
+            row.add(oneAnnot.getName());
+            row.add(oneAnnot.getType());
+            row.add(oneAnnot.getIntervals());
+            myDataObjects.add(row);
+            counter +=1;
+        }
+
+        JTable table = new JTable(new AbstractTableModel() {
+            
+            public int getRowCount() {
+                return myDataObjects.size();
+            }
+            public int getColumnCount() {
+                return 4;
+            }
+            public Object getValueAt(int row, int column){
+                return myDataObjects.get(row).get(column);
+            }
+            public String getColumnName(int col) {
+                return columnNames.get(col);
+            }
+            //checkbox rendering enabler
+            public Class getColumnClass(int c) {
+                return getValueAt(0, c).getClass();
+            }
+            //specifying which columns are editable
+            public boolean isCellEditable(int row, int col) {
+                if (col > 0) {       //ignore warning because this is the logic we want
+                    return false;    //in case we decide to make another column editable
+                } else {
+                    return true;
+                }
+            }
+            //actualizing changes
+            public void setValueAt(Object value, int row, int col) {
+                Vector<Object> tempRow = myDataObjects.get(row);
+                tempRow.setElementAt(value, col);
+                myDataObjects.set(row, tempRow);
+                fireTableCellUpdated(row, col);
+            }
+        });
+
+        table.setPreferredScrollableViewportSize(new Dimension(600, 300));
+        table.setFillsViewportHeight(true);
+        //create scroll pane for the table
+        JScrollPane selectionPane = new JScrollPane(table);
+        Object[] options = {"Cancel", "Confirm selection"};
+        int n = JOptionPane.showOptionDialog(null, selectionPane, "Select Annotation Features",
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[1]);
+        if (n > 0) {
+            //use last state of selection to modify maskList
+            System.out.println("before: "+maskList);
+            maskList.clear();
+            maskList = getColumnValues(table, 0);
+            selectFeatNum = countSelected();
+            actionLabel.setText(selectFeatNum+" selected (of "+featList.size()+")");
+
+            System.out.println("after: "+maskList);
+            System.out.println("Confirmed by" + n);
+        }
     }
 
+    private List<Object> getColumnValues(JTable table, int col){
+        List<Object> selectionValues = new ArrayList<Object>();
+        int counter = 0;
+        while (counter < table.getRowCount()) {
+            selectionValues.add(table.getValueAt(counter, col));
+            counter +=1;
+        }
+        return selectionValues;
+    }
 
+    // Primer3 link
     private final String PRIMER3_URL = "http://primer3.sourceforge.net/";
 
     // Provide additional information

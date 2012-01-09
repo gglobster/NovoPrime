@@ -33,9 +33,10 @@ class NovoPrimeAnnotationGenerator extends SequenceAnnotationGenerator {
 
     public Options getOptions(AnnotatedPluginDocument[] documents,
                               SequenceAnnotationGenerator.SelectionRange selectionRange)
-    throws DocumentOperationException {
-        return new NovoPrimeOptions(documents);
-    }
+            throws DocumentOperationException {
+                SequenceDocument document = (SequenceDocument) documents[0].getDocument();
+                return new NovoPrimeOptions(document);
+            }
 
     @Override
     public List<AnnotationGeneratorResult>
@@ -51,7 +52,7 @@ class NovoPrimeAnnotationGenerator extends SequenceAnnotationGenerator {
         NovoPrimeOptions novoprimeOptions = (NovoPrimeOptions) options;
 
         for (AnnotatedPluginDocument annotatedPluginDocument:documents) {
-            SequenceDocument seqDoc = (SequenceDocument) annotatedPluginDocument.getDocument();
+            //SequenceDocument seqDoc = (SequenceDocument) annotatedPluginDocument.getDocument();
             try {
                 // Need a listener on the output stream
                 //NovoPrimeExecutionOutputListener outputListener = new NovoPrimeExecutionOutputListener();
@@ -59,11 +60,11 @@ class NovoPrimeAnnotationGenerator extends SequenceAnnotationGenerator {
                 // run method that processes each annotation, generating two sets of primers
                 // for annots where design fails, return empty primer annot -- this will be handled later
                 //resultsList.add(outputListener.getResults());
-                
+
                 //Testing new idea
                 //List<SequenceAnnotation> selectFeatures = novoprimeOptions.getSelectFeatures(seqDoc);
 
-                
+
             } catch (Exception e) {
                 throw new DocumentOperationException("Something failed:" + e.getMessage(), e);
             }
