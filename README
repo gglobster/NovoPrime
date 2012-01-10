@@ -1,0 +1,15 @@
+##############################################################################
+### NovoPrime v. 0.1 (alpha)                                               ###
+### Copyright 2012 Geraldine A. Van der Auwera                             ###
+##############################################################################
+
+This project consists of a Java plugin for the desktop application Geneious
+(http://www.geneious.com/). The NovoPrime plugin allows the automation of
+custom primer design for genetic recombination-based engineering.
+
+STATUS: The first part (target features and parameter selection) is complete.
+
+NEXT UP: Assembling the command for Primer3 and setting up result collection.
+
+
+
