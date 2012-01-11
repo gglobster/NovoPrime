@@ -3,6 +3,7 @@ package com.gggenomics.novoprime;
 import com.biomatters.geneious.publicapi.components.Dialogs;
 import com.biomatters.geneious.publicapi.components.GEditorPane;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
+import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotationInterval;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceDocument;
 import com.biomatters.geneious.publicapi.plugin.Options;
 import com.biomatters.geneious.publicapi.utilities.IconUtilities;
@@ -23,6 +24,7 @@ public class NovoPrimeOptions extends Options {
         final SequenceDocument myDoc = document;
 
         codeLocationOptions();
+        projectOptions(myDoc);
         featSelectOptions();
         setInitialListState(myDoc);
         amplifPrimersOptions();
@@ -173,6 +175,13 @@ public class NovoPrimeOptions extends Options {
         endAlignHorizontally();
         addDivider(""); // Add some empty space to separate this option a bit
     }
+    //define the project base name
+    private StringOption baseIDOption;
+    private void projectOptions(SequenceDocument seqDoc) {
+        addDivider("Project Identifier");
+        baseIDOption = addStringOption("baseID", "Base Name:", seqDoc.getName().replace(" ", "").replace(".", ""));
+        baseIDOption.setDescription("Specify a unique alphanumeric base name to use for primer pair IDs");
+    }
     //select targets
     JLabel actionLabel = new JLabel(selectFeatNum+" selected (of "+featList.size()+")");
     private ComboBoxOption<OptionValue> featTypeOption;
@@ -198,14 +207,19 @@ public class NovoPrimeOptions extends Options {
                 "(use the 'Select subset' button to refine your selection)");
     }
     //tweak amplification primers parameters
+    private IntegerOption amplifPrimerLengthOption;
+    private StringOption amplifPrimerFwdTailOption;
+    private StringOption amplifPrimerRevTailOption;
+    private IntegerOption amplifPrimerPosStartOption;
+    private IntegerOption amplifPrimerPosStopOption;
     private void amplifPrimersOptions() {
         addDivider("Amplification Primers");
-        IntegerOption amplifPrimerLengthOption = addIntegerOption("amplifPrimerLength", "Length:", 25, 0, 100);
-        StringOption amplifPrimerFwdTailOption = addStringOption("amplifPrimerFwdTail", "Fwd Tail:", "");
-        StringOption amplifPrimerRevTailOption = addStringOption("amplifPrimerRevTail", "Rev Tail:", "");
-        beginAlignHorizontally("Distance From Start:", false);
-        IntegerOption amplifPrimerPosStartOption = addIntegerOption("amplifPrimerPosStart", "", 0, -1000, 1000);
-        IntegerOption amplifPrimerPosStopOption = addIntegerOption("amplifPrimerPosStop", "From Stop:", 0, -1000, 1000);
+        amplifPrimerLengthOption = addIntegerOption("amplifPrimerLength", "Length:", 25, 0, 100);
+        amplifPrimerFwdTailOption = addStringOption("amplifPrimerFwdTail", "Fwd Tail:", "");
+        amplifPrimerRevTailOption = addStringOption("amplifPrimerRevTail", "Rev Tail:", "");
+        beginAlignHorizontally("Offset From Start:", false);
+        amplifPrimerPosStartOption = addIntegerOption("amplifPrimerPosStart", "", 0, -1000, 1000);
+        amplifPrimerPosStopOption = addIntegerOption("amplifPrimerPosStop", "From Stop:", 0, -1000, 1000);
         endAlignHorizontally();
         // set text to display on hover
         amplifPrimerLengthOption.setDescription("Specify primer length");
@@ -380,14 +394,10 @@ public class NovoPrimeOptions extends Options {
                 JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[1]);
         if (n > 0) {
             //use last state of selection to modify maskList
-            System.out.println("before: "+maskList);
             maskList.clear();
             maskList = getColumnValues(table, 0);
             selectFeatNum = countSelected();
             actionLabel.setText(selectFeatNum+" selected (of "+featList.size()+")");
-
-            System.out.println("after: "+maskList);
-            System.out.println("Confirmed by" + n);
         }
     }
 
@@ -448,4 +458,141 @@ public class NovoPrimeOptions extends Options {
         return mainPanel;
     }
 
+    public class AmplifOptions {
+
+        protected String baseID;
+        protected Integer primerLength;
+        protected String fwdTail;
+        protected String revTail;
+        protected Integer offsetStart;
+        protected Integer offsetStop;
+
+        public AmplifOptions() {
+            baseID = baseIDOption.getValue();
+            primerLength = amplifPrimerLengthOption.getValue();
+            fwdTail = amplifPrimerFwdTailOption.getValue();
+            revTail = amplifPrimerRevTailOption.getValue();
+            offsetStart = amplifPrimerPosStartOption.getValue();
+            offsetStop = amplifPrimerPosStopOption.getValue();
+        }
+
+        public List<SequenceAnnotation> makeAmplifPair(SequenceAnnotation annotFeature, Integer index, String type) {
+
+            List<SequenceAnnotation> primerPair = new ArrayList<SequenceAnnotation>();
+            String direction = annotFeature.getIntervals().get(0).getDirection().toString();
+
+            if (direction.equals("leftToRight")) {
+                //define feature start & stop
+                int featStart = annotFeature.getIntervals().get(0).getFrom();
+                int featStop = featStart+annotFeature.getIntervals().get(0).getLength();
+                //forward primer
+                SequenceAnnotation fwdPrimer = new SequenceAnnotation(
+                        baseID+"_"+type+index+"_fwd",
+                        SequenceAnnotation.TYPE_PRIMER_BIND,
+                        new SequenceAnnotationInterval(
+                                featStart+offsetStart-primerLength, featStart+offsetStart-1)
+                );
+                primerPair.add(fwdPrimer);
+                //reverse primer
+                SequenceAnnotation revPrimer = new SequenceAnnotation(
+                        baseID+"_"+type+index+"_rev",
+                        SequenceAnnotation.TYPE_PRIMER_BIND,
+                        new SequenceAnnotationInterval(
+                                featStop+offsetStop+primerLength-1, featStop+offsetStop)
+                );
+                primerPair.add(revPrimer);
+
+            } else if (direction.equals("rightToLeft")) {
+                //define feature start & stop
+                int featStart = annotFeature.getIntervals().get(0).getFrom();
+                int featStop = featStart-annotFeature.getIntervals().get(0).getLength();
+                //forward primer
+                SequenceAnnotation fwdPrimer = new SequenceAnnotation(
+                        baseID+"_"+type+index+"_fwd",
+                        SequenceAnnotation.TYPE_PRIMER_BIND,
+                        new SequenceAnnotationInterval(
+                                featStart-offsetStart+primerLength, featStart-offsetStart+1)
+                );
+                primerPair.add(fwdPrimer);
+                //reverse primer
+                SequenceAnnotation revPrimer = new SequenceAnnotation(
+                        baseID+"_"+type+index+"_rev",
+                        SequenceAnnotation.TYPE_PRIMER_BIND,
+                        new SequenceAnnotationInterval(
+                                featStop-offsetStop-primerLength+1, featStop-offsetStop)
+                );
+                primerPair.add(revPrimer);
+            }
+
+            return primerPair;
+        }
+        
+    }
+
+    public class VerifOptions {
+
+        protected Integer distMin;
+        protected Integer distOptim;
+        protected Integer distMax;
+        protected Integer lengthMin;
+        protected Integer lengthOptim;
+        protected Integer lengthMax;
+        protected Integer tmMin;
+        protected Integer tmOptim;
+        protected Integer tmMax;
+        protected Integer gcMin;
+        protected Integer gcOptim;
+        protected Integer gcMax;
+
+        public VerifOptions() {
+            distMin = verifPrimerDistMinOption.getValue();
+            distOptim = verifPrimerDistOptimOption.getValue();
+            distMax = verifPrimerDistMaxOption.getValue();
+            lengthMin = verifPrimerLengthMinOption.getValue();
+            lengthOptim = verifPrimerLengthOptimOption.getValue();
+            lengthMax = verifPrimerLengthMaxOption.getValue();
+            tmMin = verifPrimerTmMinOption.getValue();
+            tmOptim = verifPrimerTmOptimOption.getValue();
+            tmMax = verifPrimerTmMaxOption.getValue();
+            gcMin = verifPrimerGCMinOption.getValue();
+            gcOptim = verifPrimerGCOptimOption.getValue();
+            gcMax = verifPrimerGCMaxOption.getValue();
+        }
+
+        public List<SequenceAnnotation> makeVerifPair(SequenceAnnotation annotFeature, Integer index, String type) {
+
+            List<SequenceAnnotation> primerPair = new ArrayList<SequenceAnnotation>();
+            String direction = annotFeature.getIntervals().get(0).getDirection().toString();
+
+            //compose command line for Primer3
+
+
+            return primerPair;
+        }
+
+    }
+
+    // Retrieval methods
+
+    public List<SequenceAnnotation> getSelectFeatList() {
+        List<SequenceAnnotation> selectFeats = new ArrayList<SequenceAnnotation>();
+        int counter = 0;
+        for (SequenceAnnotation oneAnnot:featList) {
+            if ((Boolean) maskList.get(counter)) {
+                selectFeats.add(oneAnnot);
+            }
+            counter +=1;
+        }
+        return selectFeats;
+    }
+
+    public AmplifOptions getAmplifOptions() {
+        return new AmplifOptions();
+    }
+
+    public VerifOptions getVerifOptions() {
+        return new VerifOptions();
+    }
+    
+    
 }

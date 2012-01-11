@@ -46,32 +46,60 @@ class NovoPrimeAnnotationGenerator extends SequenceAnnotationGenerator {
              Options options)
             throws DocumentOperationException {
 
-        List<SequenceAnnotationGenerator.AnnotationGeneratorResult> resultsList =
+        List<SequenceAnnotationGenerator.AnnotationGeneratorResult> resultsList = 
                 new ArrayList<SequenceAnnotationGenerator.AnnotationGeneratorResult>();
 
         NovoPrimeOptions novoprimeOptions = (NovoPrimeOptions) options;
 
+        //temporary file to store sequence in Boulder-IO format
+
         for (AnnotatedPluginDocument annotatedPluginDocument:documents) {
-            //SequenceDocument seqDoc = (SequenceDocument) annotatedPluginDocument.getDocument();
+            SequenceDocument seqDoc = (SequenceDocument) annotatedPluginDocument.getDocument();
+
+
             try {
                 // Need a listener on the output stream
                 //NovoPrimeExecutionOutputListener outputListener = new NovoPrimeExecutionOutputListener();
-                //List<SequenceAnnotation> myAnnots = getTypedFeatures(seqDoc, novoprimeOptions);
-                // run method that processes each annotation, generating two sets of primers
-                // for annots where design fails, return empty primer annot -- this will be handled later
-                //resultsList.add(outputListener.getResults());
 
-                //Testing new idea
-                //List<SequenceAnnotation> selectFeatures = novoprimeOptions.getSelectFeatures(seqDoc);
+                //set up container to store results
+                SequenceAnnotationGenerator.AnnotationGeneratorResult primerResults =
+                        new SequenceAnnotationGenerator.AnnotationGeneratorResult();
 
+                //get primer design options
+                NovoPrimeOptions.AmplifOptions amplifOptions = novoprimeOptions.getAmplifOptions();
+                NovoPrimeOptions.VerifOptions verifOptions = novoprimeOptions.getVerifOptions();
+
+                //process selected annotation features
+                List<SequenceAnnotation> selectFeatList = novoprimeOptions.getSelectFeatList();
+                int counter = 0;
+                for (SequenceAnnotation oneAnnot:selectFeatList) {
+                    counter +=1;
+                    //design amplification primer pair
+                    List<SequenceAnnotation> amplifPrimerPair = amplifOptions.makeAmplifPair(oneAnnot, counter, "A");
+                    //add primers in pair to results collector
+                    for (SequenceAnnotation amplifPrimer:amplifPrimerPair) {
+                        primerResults.addAnnotationToAdd(amplifPrimer);
+                    }
+                    //design verification primer pair
+                    List<SequenceAnnotation> verifPrimerPair = verifOptions.makeVerifPair(oneAnnot, counter, "V");
+                    //add primers in pair to results collector
+                    for (SequenceAnnotation verifPrimer:verifPrimerPair) {
+                        primerResults.addAnnotationToAdd(verifPrimer);
+                    }
+                //TODO: catch cases where features are too close to the edges
+
+                }
+
+                resultsList.add(primerResults);
 
             } catch (Exception e) {
-                throw new DocumentOperationException("Something failed:" + e.getMessage(), e);
+                throw new DocumentOperationException("Something went wrong:" + e.getMessage(), e);
             }
         }
 
-        // this is later -- display results and offer option to rerun where failed (if empty annot)
+
 
         return resultsList;
     }
+
 }
