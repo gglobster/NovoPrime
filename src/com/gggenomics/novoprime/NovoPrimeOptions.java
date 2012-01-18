@@ -6,16 +6,20 @@ import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotationInterval;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceDocument;
 import com.biomatters.geneious.publicapi.plugin.Options;
+import com.biomatters.geneious.publicapi.utilities.Execution;
 import com.biomatters.geneious.publicapi.utilities.IconUtilities;
+import jebl.util.CompositeProgressListener;
 import org.virion.jam.html.SimpleLinkListener;
 import org.virion.jam.util.SimpleListener;
 
 import javax.swing.*;
-import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class NovoPrimeOptions extends Options {
 
@@ -158,10 +162,12 @@ public class NovoPrimeOptions extends Options {
         });
     }
 
+    NovoPrimeLaunchers novoPrimeLaunchers = new NovoPrimeLaunchers();
+
     //declare the major variable containers
-    private List<SequenceAnnotation> featList = new ArrayList<SequenceAnnotation>();
-    private List<Object> maskList = new ArrayList<Object>();
-    private Object selectFeatNum = null;
+    List<SequenceAnnotation> featList = new ArrayList<SequenceAnnotation>();
+    List<Object> maskList = new ArrayList<Object>();
+    Object selectFeatNum = null;
 
     // Option blocks
 
@@ -173,8 +179,9 @@ public class NovoPrimeOptions extends Options {
         codeLocation.setRestoreDefaultApplies(false);
         addCustomComponent(getHelpButtonForLocation());
         endAlignHorizontally();
-        addDivider(""); // Add some empty space to separate this option a bit
+        addDivider(""); //
     }
+
     //define the project base name
     private StringOption baseIDOption;
     private void projectOptions(SequenceDocument seqDoc) {
@@ -182,6 +189,7 @@ public class NovoPrimeOptions extends Options {
         baseIDOption = addStringOption("baseID", "Base Name:", seqDoc.getName().replace(" ", "").replace(".", ""));
         baseIDOption.setDescription("Specify a unique alphanumeric base name to use for primer pair IDs");
     }
+
     //select targets
     JLabel actionLabel = new JLabel(selectFeatNum+" selected (of "+featList.size()+")");
     private ComboBoxOption<OptionValue> featTypeOption;
@@ -205,6 +213,32 @@ public class NovoPrimeOptions extends Options {
         // set text to display on hover
         featTypeOption.setDescription("Select which feature type to process: CDS, ORF, gene or any type " +
                 "(use the 'Select subset' button to refine your selection)");
+    }
+    //initialize list of features and corresponding mask list per type
+    private void setInitialListState(SequenceDocument seqDoc) {
+        featList.clear();
+        maskList.clear();
+        List<SequenceAnnotation> allAnnotations = seqDoc.getSequenceAnnotations();
+        String featType = featTypeOption.getValue().getName();
+        if (featType.equals("any")) {
+            for (SequenceAnnotation oneAnnot:allAnnotations) {
+                featList.add(oneAnnot);
+                maskList.add(false);
+            }
+        } else {
+            for (SequenceAnnotation oneAnnot:allAnnotations) {
+                if (oneAnnot.getType().equals(featType)) {
+                    featList.add(oneAnnot);
+                    if (oneAnnot.getQualifierValue("NovoPrime").equals("exclude")) {
+                        maskList.add(false);
+                    } else {
+                        maskList.add(true);
+                    }
+                }
+            }
+        }
+        selectFeatNum = novoPrimeLaunchers.countSelected(maskList);
+        actionLabel.setText(selectFeatNum+" selected (of "+featList.size()+")");
     }
     //tweak amplification primers parameters
     private IntegerOption amplifPrimerLengthOption;
@@ -283,138 +317,319 @@ public class NovoPrimeOptions extends Options {
         verifPrimerGCMaxOption.setDescription("Specify maximal GC percentage");
     }
 
-    // Methods
-
-    //initialize list of features and corresponding mask list per type
-    private void setInitialListState(SequenceDocument seqDoc) {
-        featList.clear();
-        maskList.clear();
-        List<SequenceAnnotation> allAnnotations = seqDoc.getSequenceAnnotations();
-        String featType = featTypeOption.getValue().getName();
-        if (featType.equals("any")) {
-            for (SequenceAnnotation oneAnnot:allAnnotations) {
-                featList.add(oneAnnot);
-                maskList.add(false);
-            }
-        } else {
-            for (SequenceAnnotation oneAnnot:allAnnotations) {
-                if (oneAnnot.getType().equals(featType)) {
-                    featList.add(oneAnnot);
-                    if (oneAnnot.getQualifierValue("NovoPrime").equals("exclude")) {
-                        maskList.add(false);
-                    } else {
-                        maskList.add(true);
-                    }
-                }
-            }
-        }
-        selectFeatNum = countSelected();
-        actionLabel.setText(selectFeatNum+" selected (of "+featList.size()+")");
-    }
-    
-    private int countSelected() {
-        int counter = 0;
-        for (Object item:maskList) {
-            if ((Boolean) item)
-                counter +=1;
-        }
-        return counter;
-    }
-
     //get subset selection via popup table
-    private JComponent getFeatSubsetSelectionButton() {
+    public JComponent getFeatSubsetSelectionButton() {
         return new JButton(new AbstractAction("Select subset...") {
             public void actionPerformed(ActionEvent e) {
-                launchFeatSubsetSelection();
+                maskList = novoPrimeLaunchers.launchFeatSubsetSelection(featList, maskList, actionLabel);
             }
         });
     }
-    //implementation details
-    private void launchFeatSubsetSelection() {
 
-        final List<String> columnNames = new ArrayList<String>();
-        columnNames.add("Select");
-        columnNames.add("Locus Tag");
-        columnNames.add("Type");
-        columnNames.add("Location");
-        
-        final Vector<Vector<Object>> myDataObjects = new Vector<Vector<Object>>();
-        int counter = 0;
-        for (SequenceAnnotation oneAnnot:featList) {
-            Vector<Object> row = new Vector<Object>();
-            row.add(maskList.get(counter));
-            row.add(oneAnnot.getName());
-            row.add(oneAnnot.getType());
-            row.add(oneAnnot.getIntervals());
-            myDataObjects.add(row);
-            counter +=1;
+    // Methods
+
+    //primer generation/options details
+    public class PrimerOptions {
+
+        protected String baseID;
+        protected Integer primerLength;
+        protected String fwdTail;
+        protected String revTail;
+        protected Integer offsetStart;
+        protected Integer offsetStop;
+        protected Integer distMin;
+        protected Integer distOptim;
+        protected Integer distMax;
+        protected Integer lengthMin;
+        protected Integer lengthOptim;
+        protected Integer lengthMax;
+        protected Integer tmMin;
+        protected Integer tmOptim;
+        protected Integer tmMax;
+        protected Integer gcMin;
+        protected Integer gcOptim;
+        protected Integer gcMax;
+
+        public PrimerOptions() {
+
+            baseID = baseIDOption.getValue();
+
+            primerLength = amplifPrimerLengthOption.getValue();
+            fwdTail = amplifPrimerFwdTailOption.getValue();
+            revTail = amplifPrimerRevTailOption.getValue();
+            offsetStart = amplifPrimerPosStartOption.getValue();
+            offsetStop = amplifPrimerPosStopOption.getValue();
+
+            distMin = verifPrimerDistMinOption.getValue();
+            distOptim = verifPrimerDistOptimOption.getValue();
+            distMax = verifPrimerDistMaxOption.getValue();
+            lengthMin = verifPrimerLengthMinOption.getValue();
+            lengthOptim = verifPrimerLengthOptimOption.getValue();
+            lengthMax = verifPrimerLengthMaxOption.getValue();
+            tmMin = verifPrimerTmMinOption.getValue();
+            tmOptim = verifPrimerTmOptimOption.getValue();
+            tmMax = verifPrimerTmMaxOption.getValue();
+            gcMin = verifPrimerGCMinOption.getValue();
+            gcOptim = verifPrimerGCOptimOption.getValue();
+            gcMax = verifPrimerGCMaxOption.getValue();
         }
 
-        JTable table = new JTable(new AbstractTableModel() {
-            
-            public int getRowCount() {
-                return myDataObjects.size();
+        public List<SequenceAnnotation> makeAmplifPair(SequenceAnnotation annotFeature, Integer index, String type) {
+
+            List<SequenceAnnotation> primerPair = new ArrayList<SequenceAnnotation>();
+            String direction = annotFeature.getIntervals().get(0).getDirection().toString();
+
+            Integer featStart;
+            Integer featStop;
+
+            Integer fwdStart = 0;
+            Integer fwdStop = 0;
+            Integer revStart = 0;
+            Integer revStop = 0;
+
+            if (direction.equals("leftToRight")) {
+                //define feature start & stop
+                featStart = annotFeature.getIntervals().get(0).getFrom();
+                featStop = featStart+annotFeature.getIntervals().get(0).getLength();
+                //forward primer
+                fwdStart = featStart+offsetStart-primerLength;
+                fwdStop = featStart+offsetStart-1;
+                //reverse primer
+                revStart = featStop+offsetStop+primerLength-1;
+                revStop = featStop+offsetStop;
+
+            } else { //if (direction.equals("rightToLeft")) {    //TODO: handle "no direction" case
+                //define feature start & stop
+                featStart = annotFeature.getIntervals().get(0).getFrom();
+                featStop = featStart-annotFeature.getIntervals().get(0).getLength();
+                //forward primer
+                fwdStart = featStart-offsetStart+primerLength;
+                fwdStop = featStart-offsetStart+1;
+                //reverse primer
+                revStart = featStop-offsetStop-primerLength+1;
+                revStop = featStop-offsetStop;
             }
-            public int getColumnCount() {
-                return 4;
+
+            //forward primer
+            SequenceAnnotation fwdPrimer = new SequenceAnnotation(
+                    baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_fwd",
+                    SequenceAnnotation.TYPE_PRIMER_BIND,
+                    new SequenceAnnotationInterval(
+                            fwdStart, fwdStop)
+            );
+            fwdPrimer.setQualifier("fwd_tail", fwdTail);
+            primerPair.add(fwdPrimer);
+
+            //reverse primer
+            SequenceAnnotation revPrimer = new SequenceAnnotation(
+                    baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_rev",
+                    SequenceAnnotation.TYPE_PRIMER_BIND,
+                    new SequenceAnnotationInterval(
+                            revStart, revStop)
+            );
+            revPrimer.setQualifier("rev_tail", revTail);
+            primerPair.add(revPrimer);
+
+            return primerPair;
+        }
+
+        public ArrayList<ArrayList> makeVerifPair(
+                SequenceAnnotation annotFeature, Integer index, String type, String seqString,
+                CompositeProgressListener progressListener) {
+
+            ArrayList<ArrayList> resultsPairPlusExplain = new ArrayList<ArrayList>();
+
+            String direction = annotFeature.getIntervals().get(0).getDirection().toString();
+
+            Integer featStart;
+            Integer featStop;
+
+            Integer fwdLeftBound;
+            Integer fwdRightBound;
+            Integer revLeftBound;
+            Integer revRightBound;
+
+            Integer actualLeftBound;
+            Integer actualRightBound;
+            Integer actualLeftInner;
+            Integer includedRegionSize;
+            Integer targetRegionSize;
+
+            //calculate coordinate points
+            if (direction.equals("leftToRight")) {
+                //define feature start & stop
+                featStart = annotFeature.getIntervals().get(0).getFrom();
+                featStop = featStart+annotFeature.getIntervals().get(0).getLength();
+                //forward primer boundaries
+                fwdLeftBound = featStart+offsetStart-distMax;
+                fwdRightBound = featStart+offsetStart-distMin;
+                //reverse primer boundaries
+                revLeftBound = featStop+offsetStop+distMin;
+                revRightBound = featStop+offsetStop+distMax;
+                //establish overall regions
+                actualLeftBound = fwdLeftBound;
+                actualRightBound = revRightBound;
+                actualLeftInner = fwdRightBound;
+                includedRegionSize = actualRightBound-actualLeftBound;
+                targetRegionSize = revLeftBound-fwdRightBound;
+
+            } else { //if (direction.equals("rightToLeft")) {    //TODO: handle "no direction" case
+                //define feature start & stop
+                featStart = annotFeature.getIntervals().get(0).getFrom();
+                featStop = featStart-annotFeature.getIntervals().get(0).getLength();
+                //forward primer boundaries
+                fwdLeftBound = featStart-offsetStart+distMin;
+                fwdRightBound = featStart-offsetStart+distMax;
+                //reverse primer boundaries
+                revLeftBound = featStop-offsetStop-distMax;
+                revRightBound = featStop-offsetStop-distMin;
+                //establish overall regions
+                actualLeftBound = revLeftBound;
+                actualRightBound = fwdRightBound;
+                actualLeftInner = revRightBound;
+                includedRegionSize = actualRightBound-actualLeftBound;
+                targetRegionSize = fwdLeftBound-revRightBound;
             }
-            public Object getValueAt(int row, int column){
-                return myDataObjects.get(row).get(column);
-            }
-            public String getColumnName(int col) {
-                return columnNames.get(col);
-            }
-            //checkbox rendering enabler
-            public Class getColumnClass(int c) {
-                return getValueAt(0, c).getClass();
-            }
-            //specifying which columns are editable
-            public boolean isCellEditable(int row, int col) {
-                if (col > 0) {       //ignore warning because this is the logic we want
-                    return false;    //in case we decide to make another column editable
-                } else {
-                    return true;
+
+            //temp file
+            File tempFile = null;
+
+            //assemble Boulder-IO record for Primer3
+            String boulderString =
+                    "SEQUENCE_ID="+baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index.toString()+"\n"
+                            +"SEQUENCE_TEMPLATE="+seqString+"\n"
+                            +"SEQUENCE_INCLUDED_REGION="+actualLeftBound.toString()+","+includedRegionSize.toString()+"\n"
+                            +"SEQUENCE_TARGET="+actualLeftInner.toString()+","+targetRegionSize.toString()+"\n"
+                            +"PRIMER_TASK=pick_detection_primers\n"
+                            +"PRIMER_PICK_LEFT_PRIMER=1\n"
+                            +"PRIMER_PICK_INTERNAL_OLIGO=0\n"
+                            +"PRIMER_PICK_RIGHT_PRIMER=1\n"
+                            +"PRIMER_MIN_SIZE="+lengthMin.toString()+"\n"
+                            +"PRIMER_OPT_SIZE="+lengthOptim.toString()+"\n"
+                            +"PRIMER_MAX_SIZE="+lengthMax.toString()+"\n"
+                            +"PRIMER_MIN_GC="+gcMin.toString()+"\n"
+                            +"PRIMER_OPT_GC_PERCENT="+gcOptim.toString()+"\n"
+                            +"PRIMER_MAX_GC="+gcMax.toString()+"\n"
+                            +"PRIMER_MIN_TM="+gcMin.toString()+"\n"
+                            +"PRIMER_OPT_TM="+gcOptim.toString()+"\n"
+                            +"PRIMER_MAX_TM="+gcMax.toString()+"\n"
+                            +"PRIMER_PRODUCT_SIZE_RANGE="
+                            +targetRegionSize.toString()+"-"+includedRegionSize.toString()+"\n"
+                            +"PRIMER_EXPLAIN_FLAG=1\n"
+                            +"=";
+            //write record to temp file
+            tempFile = novoPrimeLaunchers.writeTempFile(tempFile, boulderString);
+
+            //command line call to Primer3
+            String[] command = novoPrimeLaunchers.getCommand(tempFile.getAbsolutePath(), codeLocation);
+
+            //set up primer pair and messages container
+            ArrayList<String> primerExplainMessages;
+            ArrayList<SequenceAnnotation> primerPair = new ArrayList<SequenceAnnotation>();
+
+            try {
+                // Need a listener on the output stream
+                NovoPrimeExecutionOutputListener outputListener = new NovoPrimeExecutionOutputListener();
+                // Build the Execution object
+                Execution exec = new Execution(command, progressListener, outputListener, (String)null, false);
+                // Run the command
+                exec.execute();
+                // If it returns having been killed there was a problem
+                if (exec.wasKilledByGeneious()) {
+                    return null;
                 }
-            }
-            //actualizing changes
-            public void setValueAt(Object value, int row, int col) {
-                Vector<Object> tempRow = myDataObjects.get(row);
-                tempRow.setElementAt(value, col);
-                myDataObjects.set(row, tempRow);
-                fireTableCellUpdated(row, col);
-            }
-        });
+                //record primer3 explanation of results
+                primerExplainMessages = outputListener.getExplainMsg();
+                //evaluate success
+                Integer numPairsReturned = outputListener.getNumPairsReturned();
+                if (numPairsReturned.equals(0)) {
+                    primerPair.add(new SequenceAnnotation("dummy",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(0,0)));
+                    primerPair.add(new SequenceAnnotation("dummy",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(0,0)));
+                } else {
+                    List<String> pairInfo = outputListener.getPrimerPairInfo();
 
-        table.setPreferredScrollableViewportSize(new Dimension(600, 300));
-        table.setFillsViewportHeight(true);
-        //create scroll pane for the table
-        JScrollPane selectionPane = new JScrollPane(table);
-        Object[] options = {"Cancel", "Confirm selection"};
-        int n = JOptionPane.showOptionDialog(null, selectionPane, "Select Annotation Features",
-                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[1]);
-        if (n > 0) {
-            //use last state of selection to modify maskList
-            maskList.clear();
-            maskList = getColumnValues(table, 0);
-            selectFeatNum = countSelected();
-            actionLabel.setText(selectFeatNum+" selected (of "+featList.size()+")");
+                    String leftSeq = pairInfo.get(0);
+                    String rightSeq = pairInfo.get(1);
+                    String[] leftPos = Pattern.compile(",").split(pairInfo.get(2));
+                    String[] rightPos = Pattern.compile(",").split(pairInfo.get(3));
+                    Integer leftPosStart = Integer.parseInt(leftPos[0]);
+                    Integer leftPosStop = leftPosStart+Integer.parseInt(leftPos[1]);
+                    Integer rightPosStart = Integer.parseInt(rightPos[0]);
+                    Integer rightPosStop = rightPosStart+Integer.parseInt(rightPos[1]);
+
+                    Integer fwdStart = 0;
+                    Integer fwdStop = 0;
+                    Integer revStart = 0;
+                    Integer revStop = 0;
+
+                    //adapt coordinates to feature direction
+                    if (direction.equals("leftToRight")) {
+                        fwdStart = leftPosStart;
+                        fwdStop = leftPosStop;
+                        revStart = rightPosStop;
+                        revStop = rightPosStart;
+                    } else { //if (direction.equals("rightToLeft")) {    //TODO: handle "no direction" case
+                        fwdStart = rightPosStop;
+                        fwdStop = rightPosStart;
+                        revStart = leftPosStart;
+                        revStop = leftPosStop;
+                    }
+
+                    //forward primer
+                    SequenceAnnotation fwdPrimer = new SequenceAnnotation(
+                            baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_fwd",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(
+                                    fwdStart, fwdStop)
+                    );
+                    primerPair.add(fwdPrimer);
+
+                    //reverse primer
+                    SequenceAnnotation revPrimer = new SequenceAnnotation(
+                            baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_rev",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(
+                                    revStart, revStop)
+                    );
+                    primerPair.add(revPrimer);
+                }
+                resultsPairPlusExplain.add(primerPair);
+                resultsPairPlusExplain.add(primerExplainMessages);
+
+            } catch (IOException e) {
+                System.out.println("IOException");
+                /*throw new DocumentOperationException("Something went wrong:" + e.getMessage(), e);*/
+            } catch (InterruptedException e) {
+                System.out.println("InterruptedException");
+                /*throw new DocumentOperationException("Process Killed!", e);*/
+            }
+            return resultsPairPlusExplain;
         }
+
+    }
+    public PrimerOptions getPrimerOptions() {
+        return new PrimerOptions();
     }
 
-    private List<Object> getColumnValues(JTable table, int col){
-        List<Object> selectionValues = new ArrayList<Object>();
-        int counter = 0;
-        while (counter < table.getRowCount()) {
-            selectionValues.add(table.getValueAt(counter, col));
-            counter +=1;
-        }
-        return selectionValues;
+    public NovoPrimeLaunchers getNovoPrimeLaunchers() {
+        return novoPrimeLaunchers;
+    }
+    public List<Object> getMaskList() {
+        return maskList;
+    }
+    public List<SequenceAnnotation> getFeatList() {
+        return featList;
     }
 
-    // Primer3 link
+    // information stuff on first panel
+
+    //primer3 link
     private final String PRIMER3_URL = "http://primer3.sourceforge.net/";
-
-    // Provide additional information
+    //provide additional information
     public String verifyOptionsAreValid() {
         String executable = codeLocation.getValue();
         if (executable.trim().length() == 0) {
@@ -438,8 +653,7 @@ public class NovoPrimeOptions extends Options {
     private void showHelpForPrimer3Location() {
         Dialogs.showMessageDialog(getExecutableLocationHelp(), "Where to get Primer3");
     }
-
-    // Create a custom citation
+    //create a custom citation
     protected JPanel createPanel() {
         addDivider("Credits");
         JPanel mainPanel = new JPanel(new BorderLayout());
@@ -457,142 +671,4 @@ public class NovoPrimeOptions extends Options {
 
         return mainPanel;
     }
-
-    public class AmplifOptions {
-
-        protected String baseID;
-        protected Integer primerLength;
-        protected String fwdTail;
-        protected String revTail;
-        protected Integer offsetStart;
-        protected Integer offsetStop;
-
-        public AmplifOptions() {
-            baseID = baseIDOption.getValue();
-            primerLength = amplifPrimerLengthOption.getValue();
-            fwdTail = amplifPrimerFwdTailOption.getValue();
-            revTail = amplifPrimerRevTailOption.getValue();
-            offsetStart = amplifPrimerPosStartOption.getValue();
-            offsetStop = amplifPrimerPosStopOption.getValue();
-        }
-
-        public List<SequenceAnnotation> makeAmplifPair(SequenceAnnotation annotFeature, Integer index, String type) {
-
-            List<SequenceAnnotation> primerPair = new ArrayList<SequenceAnnotation>();
-            String direction = annotFeature.getIntervals().get(0).getDirection().toString();
-
-            if (direction.equals("leftToRight")) {
-                //define feature start & stop
-                int featStart = annotFeature.getIntervals().get(0).getFrom();
-                int featStop = featStart+annotFeature.getIntervals().get(0).getLength();
-                //forward primer
-                SequenceAnnotation fwdPrimer = new SequenceAnnotation(
-                        baseID+"_"+type+index+"_fwd",
-                        SequenceAnnotation.TYPE_PRIMER_BIND,
-                        new SequenceAnnotationInterval(
-                                featStart+offsetStart-primerLength, featStart+offsetStart-1)
-                );
-                primerPair.add(fwdPrimer);
-                //reverse primer
-                SequenceAnnotation revPrimer = new SequenceAnnotation(
-                        baseID+"_"+type+index+"_rev",
-                        SequenceAnnotation.TYPE_PRIMER_BIND,
-                        new SequenceAnnotationInterval(
-                                featStop+offsetStop+primerLength-1, featStop+offsetStop)
-                );
-                primerPair.add(revPrimer);
-
-            } else if (direction.equals("rightToLeft")) {
-                //define feature start & stop
-                int featStart = annotFeature.getIntervals().get(0).getFrom();
-                int featStop = featStart-annotFeature.getIntervals().get(0).getLength();
-                //forward primer
-                SequenceAnnotation fwdPrimer = new SequenceAnnotation(
-                        baseID+"_"+type+index+"_fwd",
-                        SequenceAnnotation.TYPE_PRIMER_BIND,
-                        new SequenceAnnotationInterval(
-                                featStart-offsetStart+primerLength, featStart-offsetStart+1)
-                );
-                primerPair.add(fwdPrimer);
-                //reverse primer
-                SequenceAnnotation revPrimer = new SequenceAnnotation(
-                        baseID+"_"+type+index+"_rev",
-                        SequenceAnnotation.TYPE_PRIMER_BIND,
-                        new SequenceAnnotationInterval(
-                                featStop-offsetStop-primerLength+1, featStop-offsetStop)
-                );
-                primerPair.add(revPrimer);
-            }
-
-            return primerPair;
-        }
-        
-    }
-
-    public class VerifOptions {
-
-        protected Integer distMin;
-        protected Integer distOptim;
-        protected Integer distMax;
-        protected Integer lengthMin;
-        protected Integer lengthOptim;
-        protected Integer lengthMax;
-        protected Integer tmMin;
-        protected Integer tmOptim;
-        protected Integer tmMax;
-        protected Integer gcMin;
-        protected Integer gcOptim;
-        protected Integer gcMax;
-
-        public VerifOptions() {
-            distMin = verifPrimerDistMinOption.getValue();
-            distOptim = verifPrimerDistOptimOption.getValue();
-            distMax = verifPrimerDistMaxOption.getValue();
-            lengthMin = verifPrimerLengthMinOption.getValue();
-            lengthOptim = verifPrimerLengthOptimOption.getValue();
-            lengthMax = verifPrimerLengthMaxOption.getValue();
-            tmMin = verifPrimerTmMinOption.getValue();
-            tmOptim = verifPrimerTmOptimOption.getValue();
-            tmMax = verifPrimerTmMaxOption.getValue();
-            gcMin = verifPrimerGCMinOption.getValue();
-            gcOptim = verifPrimerGCOptimOption.getValue();
-            gcMax = verifPrimerGCMaxOption.getValue();
-        }
-
-        public List<SequenceAnnotation> makeVerifPair(SequenceAnnotation annotFeature, Integer index, String type) {
-
-            List<SequenceAnnotation> primerPair = new ArrayList<SequenceAnnotation>();
-            String direction = annotFeature.getIntervals().get(0).getDirection().toString();
-
-            //compose command line for Primer3
-
-
-            return primerPair;
-        }
-
-    }
-
-    // Retrieval methods
-
-    public List<SequenceAnnotation> getSelectFeatList() {
-        List<SequenceAnnotation> selectFeats = new ArrayList<SequenceAnnotation>();
-        int counter = 0;
-        for (SequenceAnnotation oneAnnot:featList) {
-            if ((Boolean) maskList.get(counter)) {
-                selectFeats.add(oneAnnot);
-            }
-            counter +=1;
-        }
-        return selectFeats;
-    }
-
-    public AmplifOptions getAmplifOptions() {
-        return new AmplifOptions();
-    }
-
-    public VerifOptions getVerifOptions() {
-        return new VerifOptions();
-    }
-    
-    
 }

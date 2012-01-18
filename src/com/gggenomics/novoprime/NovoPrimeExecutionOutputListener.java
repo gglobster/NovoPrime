@@ -1,17 +1,26 @@
 package com.gggenomics.novoprime;
 
-import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
-import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotationInterval;
-import com.biomatters.geneious.publicapi.plugin.SequenceAnnotationGenerator;
 import com.biomatters.geneious.publicapi.utilities.Execution;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class NovoPrimeExecutionOutputListener extends Execution.OutputListener {
 
-    final SequenceAnnotationGenerator.AnnotationGeneratorResult results =
-            new SequenceAnnotationGenerator.AnnotationGeneratorResult();
+    final List primerPairInfo = new ArrayList();
 
-    SequenceAnnotationGenerator.AnnotationGeneratorResult getResults() {
-        return results;
+    ArrayList<String> primerExplainMsg = new ArrayList<String>();
+
+    Integer numPairsReturned;
+
+    public Integer getNumPairsReturned() {
+        return numPairsReturned;
+    }
+    public List<String> getPrimerPairInfo() {
+        return primerPairInfo;
+    }
+    public ArrayList<String> getExplainMsg() {
+        return primerExplainMsg;
     }
 
     @Override
@@ -21,18 +30,30 @@ public class NovoPrimeExecutionOutputListener extends Execution.OutputListener {
     }
     @Override
     public void stdoutWritten(String output) {
-        // Pass error messages through flagging them as coming from stdout
-        System.out.println("stdout " + output);
+        if (output.contains("PRIMER_ERROR=")) {
+            primerExplainMsg.add(output.substring(13).trim());
+            numPairsReturned = 0;
+        } else if (output.contains("PRIMER_PAIR_NUM_RETURNED=")) {
+            numPairsReturned = Integer.parseInt(output.substring(25).trim());
+        }
+        /*if (output.contains("SEQUENCE_ID=")) {
+            primerPairInfo.add(output.substring(12).trim());
+        }*/    //not actually needed
+        if (output.contains("EXPLAIN")) {
+            primerExplainMsg.add(output.substring(7));
+        }
+        if (output.contains("PRIMER_LEFT_0_SEQUENCE=")) {
+            primerPairInfo.add( output.substring(23).trim());
+        }
+        if (output.contains("PRIMER_RIGHT_0_SEQUENCE=")) {
+            primerPairInfo.add(output.substring(24).trim());
+        }
+        if (output.contains("PRIMER_LEFT_0=")) {
+            primerPairInfo.add(output.substring(14).trim());
+        }
+        if (output.contains("PRIMER_RIGHT_0=")) {
+            primerPairInfo.add(output.substring(15).trim());
+        }
 
-        //TODO: modify to parse output from Primer3 instead of Phobos
-        String repeatClass = output.substring(0, 16).trim();
-        int startPos = Integer.parseInt(output.substring(17, 27).trim());
-        int stopPos = Integer.parseInt(output.substring(29, 39).trim());
-
-        final SequenceAnnotationInterval interval = new SequenceAnnotationInterval(startPos, stopPos);
-        SequenceAnnotation annotation = new SequenceAnnotation(repeatClass,
-                SequenceAnnotation.TYPE_PRIMER_BIND, interval);
-
-        results.addAnnotationToAdd(annotation);
     }
 }

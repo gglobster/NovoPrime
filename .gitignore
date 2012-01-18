@@ -54,3 +54,4 @@ src/com/gggenomics/novoprime/NovoPrimeExecutionOutputListener.java
 classes/com/gggenomics/novoprime/NovoPrimeOptions$PrimerOptions.class
 
 src/com/gggenomics/novoprime/NovoPrimeOptions.java
+src/com/gggenomics/novoprime/NovoPrimeAnnotationGenerator.java
