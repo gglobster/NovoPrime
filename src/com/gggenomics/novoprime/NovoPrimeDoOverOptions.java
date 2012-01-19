@@ -1,113 +1,234 @@
 package com.gggenomics.novoprime;
 
+import com.biomatters.geneious.publicapi.components.MoreOptionsButton;
+import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
+import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotationInterval;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceDocument;
 import com.biomatters.geneious.publicapi.plugin.Options;
+import com.biomatters.geneious.publicapi.utilities.Execution;
 import com.biomatters.geneious.publicapi.utilities.IconUtilities;
+import jebl.util.CompositeProgressListener;
+import org.virion.jam.util.SimpleListener;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
+import java.util.List;
+import java.util.regex.Pattern;
 
 public class NovoPrimeDoOverOptions extends Options {
 
     public NovoPrimeDoOverOptions(
-            Integer featNum, ArrayList<String> explainMsg, Boolean allValidityCheck, Boolean amplifValidityCheck) {
+            ArrayList<String> messageList, 
+            SequenceAnnotation annotFeat, 
+            FileSelectionOption codeLocation,
+            String baseID,
+            Integer offsetStart,
+            Integer offsetStop) {
 
-        if (allValidityCheck) {
-            everythingIsOK();
-        } else {
-            if (amplifValidityCheck){
-                if (explainMsg.get(1).equals("Illegal value for SEQUENCE_INCLUDED_REGION")) {
-                    outOFBounds(true);
-                } else {
-                    parametersTooStringent();
-                    addDivider("");
-                    diagnosticMessage(explainMsg);
+        featureDetails(annotFeat, baseID, offsetStart, offsetStop);
+        diagnosticMessage(messageList);
+        secondRoundVerifPrimersOptions(codeLocation);
+
+        verifPrimerDistMinOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerDistMinOption.getValue() > verifPrimerDistOptimOption.getValue()) {
+                    verifPrimerDistOptimOption.setValue(verifPrimerDistMinOption.getValue());
                 }
-                offerSolutionsOptions();
-
-            } else {
-                if (explainMsg.get(1).equals("Illegal value for SEQUENCE_INCLUDED_REGION")) {
-                    outOFBounds(false);
-                } else if (explainMsg.get(1).equals("TARGET beyond end of sequence")) {
-                    overlapUnsupported();
-                } else {
-                    unknownIssue();
-                    addDivider("");
-                    diagnosticMessage(explainMsg);
+                if (verifPrimerDistMinOption.getValue() > verifPrimerDistMaxOption.getValue()) {
+                    verifPrimerDistMaxOption.setValue(verifPrimerDistMinOption.getValue());
                 }
-            }
-        }
-    }
-
-    SequenceDocument seqDoc;
-
-    //offer solutions: do-over, manual input or give up
-    private void offerSolutionsOptions() {
-        //addCustomComponent(getFeatSubsetSelectionButton());
-    }
-
-    //do-over button
-/*    public JComponent getFeatSubsetSelectionButton() {
-        return new JButton(new AbstractAction("Run Primer3...") {
-            public void actionPerformed(ActionEvent e) {
-                maskList = novoPrimeLaunchers.launchFeatSubsetSelection(featList, maskList, actionLabel);
             }
         });
-    }*/
-
-    //no need to do anything
-    private void everythingIsOK() {
-        addLabelWithIcon("All primer design was successful.", IconUtilities.getIcons("tick16.png"));
-        addLabel("<html>No further action is necessary for this feature/primer set.</html>");
+        verifPrimerDistOptimOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerDistOptimOption.getValue() > verifPrimerDistMaxOption.getValue()) {
+                    verifPrimerDistMaxOption.setValue(verifPrimerDistOptimOption.getValue());
+                }
+                if (verifPrimerDistOptimOption.getValue() < verifPrimerDistMinOption.getValue()) {
+                    verifPrimerDistMinOption.setValue(verifPrimerDistOptimOption.getValue());
+                }
+            }
+        });
+        verifPrimerDistMaxOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerDistMaxOption.getValue() < verifPrimerDistOptimOption.getValue()) {
+                    verifPrimerDistOptimOption.setValue(verifPrimerDistMaxOption.getValue());
+                }
+                if (verifPrimerDistMaxOption.getValue() < verifPrimerDistMinOption.getValue()) {
+                    verifPrimerDistMinOption.setValue(verifPrimerDistMaxOption.getValue());
+                }
+            }
+        });
+        verifPrimerLengthMinOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthOptimOption.getValue()) {
+                    verifPrimerLengthOptimOption.setValue(verifPrimerLengthMinOption.getValue());
+                }
+                if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
+                    verifPrimerLengthMaxOption.setValue(verifPrimerLengthMinOption.getValue());
+                }
+            }
+        });
+        verifPrimerLengthOptimOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerLengthOptimOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
+                    verifPrimerLengthMaxOption.setValue(verifPrimerLengthOptimOption.getValue());
+                }
+                if (verifPrimerLengthOptimOption.getValue() < verifPrimerLengthMinOption.getValue()) {
+                    verifPrimerLengthMinOption.setValue(verifPrimerLengthOptimOption.getValue());
+                }
+            }
+        });
+        verifPrimerLengthMaxOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthMinOption.getValue()) {
+                    verifPrimerLengthMinOption.setValue(verifPrimerLengthMaxOption.getValue());
+                }
+                if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthOptimOption.getValue()) {
+                    verifPrimerLengthOptimOption.setValue(verifPrimerLengthMaxOption.getValue());
+                }
+            }
+        });
+        verifPrimerTmMinOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerTmMinOption.getValue() > verifPrimerTmOptimOption.getValue()) {
+                    verifPrimerTmOptimOption.setValue(verifPrimerTmMinOption.getValue());
+                }
+                if (verifPrimerTmMinOption.getValue() > verifPrimerTmMaxOption.getValue()) {
+                    verifPrimerTmMaxOption.setValue(verifPrimerTmMinOption.getValue());
+                }
+            }
+        });
+        verifPrimerTmOptimOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerTmOptimOption.getValue() > verifPrimerTmMaxOption.getValue()) {
+                    verifPrimerTmMaxOption.setValue(verifPrimerTmOptimOption.getValue());
+                }
+                if (verifPrimerTmOptimOption.getValue() < verifPrimerTmMinOption.getValue()) {
+                    verifPrimerTmMinOption.setValue(verifPrimerTmOptimOption.getValue());
+                }
+            }
+        });
+        verifPrimerTmMaxOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerTmMaxOption.getValue() < verifPrimerTmMinOption.getValue()) {
+                    verifPrimerTmMinOption.setValue(verifPrimerTmMaxOption.getValue());
+                }
+                if (verifPrimerTmMaxOption.getValue() < verifPrimerTmOptimOption.getValue()) {
+                    verifPrimerTmOptimOption.setValue(verifPrimerTmMaxOption.getValue());
+                }
+            }
+        });
+        verifPrimerGCMinOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerGCMinOption.getValue() > verifPrimerGCOptimOption.getValue()) {
+                    verifPrimerGCOptimOption.setValue(verifPrimerGCMinOption.getValue());
+                }
+                if (verifPrimerGCMinOption.getValue() > verifPrimerGCMaxOption.getValue()) {
+                    verifPrimerGCMaxOption.setValue(verifPrimerGCMinOption.getValue());
+                }
+            }
+        });
+        verifPrimerGCOptimOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerGCOptimOption.getValue() > verifPrimerGCMaxOption.getValue()) {
+                    verifPrimerGCMaxOption.setValue(verifPrimerGCOptimOption.getValue());
+                }
+                if (verifPrimerGCOptimOption.getValue() < verifPrimerGCMinOption.getValue()) {
+                    verifPrimerGCMinOption.setValue(verifPrimerGCOptimOption.getValue());
+                }
+            }
+        });
+        verifPrimerGCMaxOption.addChangeListener(new SimpleListener() {
+            public void objectChanged() {
+                if (verifPrimerGCMaxOption.getValue() < verifPrimerGCMinOption.getValue()) {
+                    verifPrimerGCMinOption.setValue(verifPrimerGCMaxOption.getValue());
+                }
+                if (verifPrimerGCMaxOption.getValue() < verifPrimerGCOptimOption.getValue()) {
+                    verifPrimerGCOptimOption.setValue(verifPrimerGCMaxOption.getValue());
+                }
+            }
+        });
     }
 
-    //parameters too stringent
-    private void parametersTooStringent() {
-        addLabelWithIcon("Primer design failed for the verification pair.",
-                IconUtilities.getIcons("warning16.png"));
-        addLabel("<html>Parameters were too stringent (see diagnostic message below for details).<br>" +
-                        "Try relaxing design constraints.</html>");
-    }
+    NovoPrimeLaunchers novoPrimeLaunchers = new NovoPrimeLaunchers();
 
-    //not sure what went wrong
-    private void unknownIssue() {
-        addLabelWithIcon("All primer design failed.", IconUtilities.getIcons("error13.png"));
-        addLabel("<html>Cause of failure is unrecognized (see diagnostic message below for details).<br>" +
-                        "There is no remedial action available for this feature/primer set.</html>");
-    }
+    //SequenceDocument seqDoc;
+    FileSelectionOption codeLocation;
+    String baseID;
+    Integer offsetStart;
+    Integer offsetStop;
 
-    //feature overlaps the origin
-    private void overlapUnsupported(){
-        addLabelWithIcon("All primer design failed.", IconUtilities.getIcons("error13.png"));
-        addLabel("<html>The annotation feature appears to overlap the origin.<br>" +
-                        "NovoPrime does not support such a configuration at this time.<br>" +
-                        "There is no remedial action available for this feature/primer set.</html>");
-    }
-
-    //out of bounds
-    private void outOFBounds(Boolean issueIsSalvageable) {
-        if (issueIsSalvageable) {
-            addLabelWithIcon("Primer design failed for the verification pair.",
-                    IconUtilities.getIcons("warning16.png"));
-            addLabel("<html>The annotation feature is near the edge of the sequence.<br>" +
-                            "Try reducing the Distance Min and Max of the primer picking zone.</html>");
+    //display feature details
+    private void featureDetails(SequenceAnnotation annotFeat,
+                                String priorBaseID,
+                                Integer priorOffsetStart,
+                                Integer priorOffsetStop) {
+        baseID = priorBaseID;
+        offsetStart = priorOffsetStart;
+        offsetStop = priorOffsetStop;
+        addDivider("Target Details");
+        beginAlignHorizontally("Name: ", false);
+        addLabel(annotFeat.getName());
+        endAlignHorizontally();
+        beginAlignHorizontally("Location: ", false);
+        Integer featStart = annotFeat.getIntervals().get(0).getFrom();
+        Integer featStop = annotFeat.getIntervals().get(0).getTo();
+        if (featStop > featStart) {
+            addLabel(featStart.toString());
+            addLabel(annotFeat.getIntervals().get(0).getDirection().toArrowString());
+            addLabel(featStop.toString());
         } else {
-            addLabelWithIcon("All primer design failed.", IconUtilities.getIcons("error13.png"));
-            addLabel("<html>The annotation feature is too close to the edge of the sequence.<br>" +
-                            "There is no remedial action available for this feature/primer set.</html>");
+            addLabel(featStop.toString());
+            addLabel(annotFeat.getIntervals().get(0).getDirection().toArrowString());
+            addLabel(featStart.toString());
         }
-        
+        endAlignHorizontally();
+        beginAlignHorizontally("Offset: ", false);
+        addLabel("start "+offsetStart.toString()+" / stop "+offsetStop.toString());
+        endAlignHorizontally();
     }
-
     //display Primer3 diagnostics messages for info
-    private void diagnosticMessage(ArrayList<String> messageList){
+    private void diagnosticMessage(ArrayList<String> messageList) {
+        Boolean flag = false;
+        Integer counter = 0;
+        addDivider("Diagnostics");
         for (String line:messageList) {
             if (line.startsWith("EXPLAIN_FLAG")) {
                 continue;
             } else {
-                addLabel(line);
+                if (counter == 0){
+                    beginAlignHorizontally("Error message: ", false);
+                    addLabel("> "+line);
+                    endAlignHorizontally();
+                    counter +=1;
+                } else {
+                    addLabel("> "+line);
+                }
+                if (line.equals("Illegal value for SEQUENCE_INCLUDED_REGION")) {
+                    beginAlignHorizontally("Probable cause: ", false);
+                    addLabel("The annotation feature is near the edge of the sequence.");
+                    endAlignHorizontally();
+                    addLabel("The primer picking zone should not extend beyond the end of the sequence.");
+                    beginAlignHorizontally("Recommendation: ", false);
+                    addLabel("Try reducing the Distance Min and Max.");
+                    endAlignHorizontally();
+                } else {
+                    flag = true;
+                }
             }
+        }
+        if (flag) {
+            beginAlignHorizontally("Probable cause: ", false);
+            addLabel("Parameters were too stringent.");
+            endAlignHorizontally();
+            beginAlignHorizontally("Recommendation: ", false);
+            addLabel("Try relaxing the design constraints.");
+            endAlignHorizontally();
         }
     }
 
@@ -124,7 +245,7 @@ public class NovoPrimeDoOverOptions extends Options {
     private IntegerOption verifPrimerGCMinOption;
     private IntegerOption verifPrimerGCOptimOption;
     private IntegerOption verifPrimerGCMaxOption;
-    private void secondRoundVerifPrimersOptions() {
+    private void secondRoundVerifPrimersOptions(FileSelectionOption priorCodeLocation) {
         addDivider("Parameters");
         beginAlignHorizontally("Distance Min:", false);
         verifPrimerDistMinOption = addIntegerOption("verifPrimerDistMin", "", 400, 0, 5000);
@@ -162,10 +283,13 @@ public class NovoPrimeDoOverOptions extends Options {
         verifPrimerGCMinOption.setDescription("Specify minimal GC percentage");
         verifPrimerGCOptimOption.setDescription("Specify optimal GC percentage");
         verifPrimerGCMaxOption.setDescription("Specify maximal GC percentage");
+        //make these available
+        codeLocation = priorCodeLocation;
     }
 
     //primer generation/options details
     public class DoOverOptions {
+
         protected Integer distMin;
         protected Integer distOptim;
         protected Integer distMax;
@@ -179,7 +303,12 @@ public class NovoPrimeDoOverOptions extends Options {
         protected Integer gcOptim;
         protected Integer gcMax;
 
-        public DoOverOptions(String baseID) {
+        public DoOverOptions() {
+
+            baseID = baseID;
+
+            offsetStart = offsetStart;
+            offsetStop = offsetStop;
 
             distMin = verifPrimerDistMinOption.getValue();
             distOptim = verifPrimerDistOptimOption.getValue();
@@ -195,6 +324,192 @@ public class NovoPrimeDoOverOptions extends Options {
             gcMax = verifPrimerGCMaxOption.getValue();
         }
 
+        public ArrayList<ArrayList> makeVerifPair(
+                SequenceAnnotation annotFeature, Integer index, String type, String seqString,
+                CompositeProgressListener progressListener) {
+
+            ArrayList<ArrayList> resultsPairPlusExplain = new ArrayList<ArrayList>();
+
+            String direction = annotFeature.getIntervals().get(0).getDirection().toString();
+
+            Integer featStart;
+            Integer featStop;
+
+            Integer fwdLeftBound;
+            Integer fwdRightBound;
+            Integer revLeftBound;
+            Integer revRightBound;
+
+            Integer actualLeftBound;
+            Integer actualRightBound;
+            Integer actualLeftInner;
+            Integer includedRegionSize;
+            Integer targetRegionSize;
+
+            //calculate coordinate points
+            if (direction.equals("leftToRight")) {
+                //define feature start & stop
+                featStart = annotFeature.getIntervals().get(0).getFrom();
+                featStop = featStart+annotFeature.getIntervals().get(0).getLength();
+                //forward primer boundaries
+                fwdLeftBound = featStart+offsetStart-distMax;
+                fwdRightBound = featStart+offsetStart-distMin;
+                //reverse primer boundaries
+                revLeftBound = featStop+offsetStop+distMin;
+                revRightBound = featStop+offsetStop+distMax;
+                //establish overall regions
+                actualLeftBound = fwdLeftBound;
+                actualRightBound = revRightBound;
+                actualLeftInner = fwdRightBound;
+                includedRegionSize = actualRightBound-actualLeftBound;
+                targetRegionSize = revLeftBound-fwdRightBound;
+
+            } else { //if (direction.equals("rightToLeft")) {    //TODO: handle "no direction" case
+                //define feature start & stop
+                featStart = annotFeature.getIntervals().get(0).getFrom();
+                featStop = featStart-annotFeature.getIntervals().get(0).getLength();
+                //forward primer boundaries
+                fwdLeftBound = featStart-offsetStart+distMin;
+                fwdRightBound = featStart-offsetStart+distMax;
+                //reverse primer boundaries
+                revLeftBound = featStop-offsetStop-distMax;
+                revRightBound = featStop-offsetStop-distMin;
+                //establish overall regions
+                actualLeftBound = revLeftBound;
+                actualRightBound = fwdRightBound;
+                actualLeftInner = revRightBound;
+                includedRegionSize = actualRightBound-actualLeftBound;
+                targetRegionSize = fwdLeftBound-revRightBound;
+            }
+
+            //temp file
+            File tempFile = null;
+
+            //assemble Boulder-IO record for Primer3
+            String boulderString =
+                    "SEQUENCE_ID="+baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index.toString()+"\n"
+                            +"SEQUENCE_TEMPLATE="+seqString+"\n"
+                            +"SEQUENCE_INCLUDED_REGION="+actualLeftBound.toString()+","+includedRegionSize.toString()+"\n"
+                            +"SEQUENCE_TARGET="+actualLeftInner.toString()+","+targetRegionSize.toString()+"\n"
+                            +"PRIMER_TASK=pick_detection_primers\n"
+                            +"PRIMER_PICK_LEFT_PRIMER=1\n"
+                            +"PRIMER_PICK_INTERNAL_OLIGO=0\n"
+                            +"PRIMER_PICK_RIGHT_PRIMER=1\n"
+                            +"PRIMER_MIN_SIZE="+lengthMin.toString()+"\n"
+                            +"PRIMER_OPT_SIZE="+lengthOptim.toString()+"\n"
+                            +"PRIMER_MAX_SIZE="+lengthMax.toString()+"\n"
+                            +"PRIMER_MIN_GC="+gcMin.toString()+"\n"
+                            +"PRIMER_OPT_GC_PERCENT="+gcOptim.toString()+"\n"
+                            +"PRIMER_MAX_GC="+gcMax.toString()+"\n"
+                            +"PRIMER_MIN_TM="+gcMin.toString()+"\n"
+                            +"PRIMER_OPT_TM="+gcOptim.toString()+"\n"
+                            +"PRIMER_MAX_TM="+gcMax.toString()+"\n"
+                            +"PRIMER_PRODUCT_SIZE_RANGE="
+                            +targetRegionSize.toString()+"-"+includedRegionSize.toString()+"\n"
+                            +"PRIMER_EXPLAIN_FLAG=1\n"
+                            +"=";
+            //write record to temp file
+            tempFile = novoPrimeLaunchers.writeTempFile(tempFile, boulderString);
+
+            //command line call to Primer3
+            String[] command = novoPrimeLaunchers.getCommand(tempFile.getAbsolutePath(), codeLocation);
+
+            //set up primer pair and messages container
+            ArrayList<String> primerExplainMessages;
+            ArrayList<SequenceAnnotation> primerPair = new ArrayList<SequenceAnnotation>();
+
+            try {
+                // Need a listener on the output stream
+                NovoPrimeExecutionOutputListener outputListener = new NovoPrimeExecutionOutputListener();
+                // Build the Execution object
+                Execution exec = new Execution(command, progressListener, outputListener, (String)null, false);
+                // Run the command
+                exec.execute();
+                // If it returns having been killed there was a problem
+                if (exec.wasKilledByGeneious()) {
+                    return null;
+                }
+                //record primer3 explanation of results
+                primerExplainMessages = outputListener.getExplainMsg();
+                //evaluate success
+                Integer numPairsReturned = outputListener.getNumPairsReturned();
+                if (numPairsReturned.equals(null)) {
+                    System.out.println("ERROR: Problem parsing output from Primer3");  //TODO: add exception handling
+                } else if (numPairsReturned.equals(0)) {
+                    primerPair.add(new SequenceAnnotation("dummy",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(0,0)));
+                    primerPair.add(new SequenceAnnotation("dummy",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(0,0)));
+                } else {
+                    List<String> pairInfo = outputListener.getPrimerPairInfo();
+
+                    String leftSeq = pairInfo.get(0);
+                    String rightSeq = pairInfo.get(1);
+                    String[] leftPos = Pattern.compile(",").split(pairInfo.get(2));
+                    String[] rightPos = Pattern.compile(",").split(pairInfo.get(3));
+                    Integer leftPosStart = Integer.parseInt(leftPos[0]);
+                    Integer leftPosStop = leftPosStart+Integer.parseInt(leftPos[1]);
+                    Integer rightPosStart = Integer.parseInt(rightPos[0]);
+                    Integer rightPosStop = rightPosStart+Integer.parseInt(rightPos[1]);
+
+                    Integer fwdStart = 0;
+                    Integer fwdStop = 0;
+                    Integer revStart = 0;
+                    Integer revStop = 0;
+
+                    //adapt coordinates to feature direction
+                    if (direction.equals("leftToRight")) {
+                        fwdStart = leftPosStart;
+                        fwdStop = leftPosStop;
+                        revStart = rightPosStop;
+                        revStop = rightPosStart;
+                    } else { //if (direction.equals("rightToLeft")) {    //TODO: handle "no direction" case
+                        fwdStart = rightPosStop;
+                        fwdStop = rightPosStart;
+                        revStart = leftPosStart;
+                        revStop = leftPosStop;
+                    }
+
+                    //forward primer
+                    SequenceAnnotation fwdPrimer = new SequenceAnnotation(
+                            baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_fwd",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(
+                                    fwdStart, fwdStop)
+                    );
+                    primerPair.add(fwdPrimer);
+
+                    //reverse primer
+                    SequenceAnnotation revPrimer = new SequenceAnnotation(
+                            baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_rev",
+                            SequenceAnnotation.TYPE_PRIMER_BIND,
+                            new SequenceAnnotationInterval(
+                                    revStart, revStop)
+                    );
+                    primerPair.add(revPrimer);
+                }
+                resultsPairPlusExplain.add(primerPair);
+                resultsPairPlusExplain.add(primerExplainMessages);
+
+            } catch (IOException e) {
+                System.out.println("IOException");
+                /*throw new DocumentOperationException("Something went wrong:" + e.getMessage(), e);*/
+            } catch (InterruptedException e) {
+                System.out.println("InterruptedException");
+                /*throw new DocumentOperationException("Process Killed!", e);*/
+            }
+            return resultsPairPlusExplain;
+        }
+
+    }
+    public DoOverOptions getPrimerOptions() {
+        return new DoOverOptions();
+    }
+
+    public NovoPrimeLaunchers getNovoPrimeLaunchers() {
+        return novoPrimeLaunchers;
     }
 
     //create panel

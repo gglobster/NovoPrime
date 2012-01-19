@@ -78,6 +78,8 @@ class NovoPrimeAnnotationGenerator extends SequenceAnnotationGenerator {
                 NovoPrimeOptions.PrimerOptions primerOptions = novoprimeOptions.getPrimerOptions();
                 NovoPrimeLaunchers novoPrimeLaunchers = novoprimeOptions.getNovoPrimeLaunchers();
 
+                Options.FileSelectionOption codeLocation = novoprimeOptions.getCodeLocation();
+
                 //process selected annotation features
                 List<SequenceAnnotation> selectFeatList = novoPrimeLaunchers.getSelectFeatList(
                         novoprimeOptions.getFeatList(), novoprimeOptions.getMaskList());
@@ -130,37 +132,50 @@ class NovoPrimeAnnotationGenerator extends SequenceAnnotationGenerator {
 
                 //offer results summary + options for a second round
                 List<SequenceAnnotation> finalList = novoPrimeLaunchers.launchFirstRoundSummary(
-                        seqDoc, selectFeatList, firstRoundResults, verifExplainMsgs);
+                        seqDoc,
+                        selectFeatList,
+                        firstRoundResults,
+                        verifExplainMsgs,
+                        codeLocation,
+                        primerOptions.baseID,
+                        primerOptions.offsetStart,
+                        primerOptions.offsetStop,
+                        progress);
 
-                BufferedWriter out = new BufferedWriter(new FileWriter(
-                        FileUtilities.getUserSelectedSaveFile(
-                                "Save", "Select Output File Location", primerOptions.baseID+"_primers.txt", "TXT")));
+                if (finalList.isEmpty()) {
+                    //canceled or failed?
+                } else {
+                    BufferedWriter out = new BufferedWriter(new FileWriter(
+                            FileUtilities.getUserSelectedSaveFile(
+                                    "Save", "Select Output File Location",
+                                    primerOptions.baseID+"_primers.txt", "TXT")));
 
-                for (SequenceAnnotation primer:finalList) {
-                    primerResults.addAnnotationToAdd(primer);
-                    //extract primer info
-                    String primerSequence;
-                    Integer primer_start = primer.getIntervals().get(0).getFrom();
-                    Integer primer_stop = primer.getIntervals().get(0).getTo();
-                    String primer_dir = primer.getIntervals().get(0).getDirection().toString();
-                    if (primer_dir.equals("leftToRight")) {
-                        primerSequence = seqString.subSequence(primer_start-1, primer_stop).toString();
-                    } else {
-                        primerSequence = SequenceUtilities.reverseComplement(
-                                seqString.subSequence(primer_stop-1, primer_start)).toString();
+                    for (SequenceAnnotation primer:finalList) {
+                        primerResults.addAnnotationToAdd(primer);
+                        //extract primer info
+                        String primerSequence;
+                        Integer primer_start = primer.getIntervals().get(0).getFrom();
+                        Integer primer_stop = primer.getIntervals().get(0).getTo();
+                        String primer_dir = primer.getIntervals().get(0).getDirection().toString();
+                        if (primer_dir.equals("leftToRight")) {
+                            primerSequence = seqString.subSequence(primer_start-1, primer_stop).toString();
+                        } else {
+                            primerSequence = SequenceUtilities.reverseComplement(
+                                    seqString.subSequence(primer_stop-1, primer_start)).toString();
+                        }
+                        if (primer.getName().endsWith("_fwd")) {
+                            primerSequence += primer.getQualifierValue("fwd_tail");
+                        } else if (primer.getName().endsWith("_rev")) {
+                            primerSequence += primer.getQualifierValue("rev_tail");
+                        }
+                        //write info to file
+                        out.write(primer.getName());
+                        out.write("\t");
+                        out.write(primerSequence);
+                        out.write("\n");
                     }
-                    if (primer.getName().endsWith("_fwd")) {
-                        primerSequence += primer.getQualifierValue("fwd_tail");
-                    } else if (primer.getName().endsWith("_rev")) {
-                        primerSequence += primer.getQualifierValue("rev_tail");
-                    }
-                    //write info to file
-                    out.write(primer.getName());
-                    out.write("\t");
-                    out.write(primerSequence);
-                    out.write("\n");
+                    out.close();
                 }
-                out.close();
 
                 resultsList.add(primerResults);
                 

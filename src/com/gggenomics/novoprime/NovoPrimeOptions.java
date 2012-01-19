@@ -182,6 +182,10 @@ public class NovoPrimeOptions extends Options {
         addDivider(""); //
     }
 
+    public FileSelectionOption getCodeLocation() {
+        return codeLocation;
+    }
+
     //define the project base name
     private StringOption baseIDOption;
     private void projectOptions(SequenceDocument seqDoc) {
@@ -542,7 +546,9 @@ public class NovoPrimeOptions extends Options {
                 primerExplainMessages = outputListener.getExplainMsg();
                 //evaluate success
                 Integer numPairsReturned = outputListener.getNumPairsReturned();
-                if (numPairsReturned.equals(0)) {
+                if (numPairsReturned.equals(null)) {
+                    System.out.println("ERROR: Problem parsing output from Primer3");  //TODO: add exception handling
+                } else if (numPairsReturned.equals(0)) {
                     primerPair.add(new SequenceAnnotation("dummy",
                             SequenceAnnotation.TYPE_PRIMER_BIND,
                             new SequenceAnnotationInterval(0,0)));

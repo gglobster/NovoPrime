@@ -1,9 +1,12 @@
 package com.gggenomics.novoprime;
 
+import com.biomatters.geneious.publicapi.components.GEditorPane;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceDocument;
 import com.biomatters.geneious.publicapi.plugin.Options;
 import com.biomatters.geneious.publicapi.utilities.FileUtilities;
+import com.biomatters.geneious.publicapi.utilities.IconUtilities;
+import jebl.util.CompositeProgressListener;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -46,7 +49,13 @@ public class NovoPrimeLaunchers {
 
     List<ArrayList<String>> explainMSGs;
     List<SequenceAnnotation> annotList;
+    List<SequenceAnnotation> featList;
     SequenceDocument seqDoc;
+    Options.FileSelectionOption codeLocation;
+    String baseID;
+    Integer offsetStart;
+    Integer offsetStop;
+    CompositeProgressListener progress;
 
     List<Boolean> allValidityCheckList = new ArrayList<Boolean>();
     List<Boolean> amplifValidityCheckList = new ArrayList<Boolean>();
@@ -173,13 +182,24 @@ public class NovoPrimeLaunchers {
             SequenceDocument document,
             List<SequenceAnnotation> selectFeatList,
             List<SequenceAnnotation> primersList,
-            List<ArrayList<String>> verifExplainMsgs) {
+            List<ArrayList<String>> verifExplainMsgs,
+            Options.FileSelectionOption priorCodeLocation,
+            String priorBaseID,
+            Integer priorOffsetStart,
+            Integer priorOffsetStop,
+            CompositeProgressListener progressListener) {
 
         List<SequenceAnnotation> finalList = new ArrayList<SequenceAnnotation>();
         
         seqDoc = document;
         explainMSGs = verifExplainMsgs;
         annotList = primersList;
+        featList = selectFeatList;
+        codeLocation = priorCodeLocation;
+        baseID = priorBaseID;
+        offsetStart = priorOffsetStart;
+        offsetStop = priorOffsetStop;
+        progress = progressListener;
 
         final List<String> columnNames = new ArrayList<String>();
         columnNames.add("Select");
@@ -275,30 +295,17 @@ public class NovoPrimeLaunchers {
         table.setFillsViewportHeight(true);
         //create scroll pane for the table
         JScrollPane summaryPane = new JScrollPane(table);
-        Object[] options = {"Cancel", "Confirm selection"};
+        Object[] options = {"Confirm selection", "Cancel"};
         int n = JOptionPane.showOptionDialog(null, summaryPane, "Primer Design Results Summary",
-                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[1]);
-        if (n > 0) {  //TODO: output to file
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+        if (n == 0) {
             Integer counter = 0;
             while (counter < primersList.size()) {
-                Boolean flag = true;
-                if (primersList.get(counter).getName().equals("dummy")) {
-                    flag = false;
-                }
-                if (primersList.get(counter+1).getName().equals("dummy")) {
-                    flag = false;
-                }
-                if (primersList.get(counter+2).getName().equals("dummy")) {
-                    flag = false;
-                }
-                if (primersList.get(counter+3).getName().equals("dummy")) {
-                    flag = false;
-                }
-                if (flag) {
-                    finalList.add(primersList.get(counter));
-                    finalList.add(primersList.get(counter+1));
-                    finalList.add(primersList.get(counter+2));
-                    finalList.add(primersList.get(counter+3));
+                if (allValidityCheckList.get(counter/4)) {
+                    finalList.add(annotList.get(counter));
+                    finalList.add(annotList.get(counter+1));
+                    finalList.add(annotList.get(counter+2));
+                    finalList.add(annotList.get(counter+3));
                 }
                 counter +=4;
             }
@@ -308,22 +315,133 @@ public class NovoPrimeLaunchers {
         }
     }
 
-    //launch fourth panel (second round, individual)
-    public Integer launchSecondRound(Integer counter) {
+    //launch individual info panels (second round, individual)
+    public Integer launchStatusDialog(Integer counter) {
         Integer featNum = (counter/4)+1;
-        NovoPrimeDoOverOptions novoPrimeDoOverOptions = new NovoPrimeDoOverOptions(
-                featNum-1, explainMSGs.get(featNum-1),
-                allValidityCheckList.get(featNum-1), amplifValidityCheckList.get(featNum-1));
-        Object[] options = {"Done"};
-        int n = JOptionPane.showOptionDialog(
-                null, novoPrimeDoOverOptions.createPanel(), "Primer Options For Selected Feature",
-                JOptionPane.OK_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-        if (n > 0) {
-
+        if (allValidityCheckList.get(featNum-1)) {
+            everythingIsOK(featList.get(featNum-1));
+            return 0;
+        } else {
+            if (amplifValidityCheckList.get(featNum-1)){
+                if (explainMSGs.get(featNum-1).get(1).equals("Illegal value for SEQUENCE_INCLUDED_REGION")) {
+                    return outOFBounds(true, featNum, featList.get(featNum-1));
+                } else {
+                    return parametersTooStringent(featNum, featList.get(featNum-1));
+                }
+            } else {
+                if (explainMSGs.get(featNum-1).get(1).equals("Illegal value for SEQUENCE_INCLUDED_REGION")) {
+                    outOFBounds(false, featNum, featList.get(featNum-1));
+                    return 0;
+                } else if (explainMSGs.get(featNum-1).get(1).equals("TARGET beyond end of sequence")) {
+                    overlapUnsupported(featList.get(featNum-1));
+                    return 0;
+                } else {
+                    unknownIssue(featList.get(featNum-1));
+                    return 0;
+                }
+            }
         }
-        return n;
     }
-
+    
+    //everything is OK
+    private void everythingIsOK(SequenceAnnotation annotFeat) {
+        String infoMessage = "\nAll primer design was successful.\n" +
+                "No further action is necessary for this feature/primer set.";
+        Icon statusIcon = IconUtilities.getIcons("tick16.png").getOriginalIcon();
+        JOptionPane.showMessageDialog(
+                null, infoMessage, annotFeat.getName(), JOptionPane.INFORMATION_MESSAGE, statusIcon);
+    }
+    //not sure what went wrong
+    private void unknownIssue(SequenceAnnotation annotFeat) {
+        String infoMessage = "\nAll primer design failed.\n" +
+                "Cause of failure is unrecognized.\n" +
+                "There is no remedial action available for this feature/primer set.";
+        JOptionPane.showMessageDialog(
+                null, infoMessage, annotFeat.getName(), JOptionPane.ERROR_MESSAGE);
+    }
+    //feature overlaps the origin
+    private void overlapUnsupported(SequenceAnnotation annotFeat){
+        String infoMessage = "\nAll primer design failed.\n" +
+                "The annotation feature appears to overlap the origin.\n" +
+                "NovoPrime does not support such a configuration at this time.\n" +
+                "There is no remedial action available for this feature/primer set.";
+        JOptionPane.showMessageDialog(
+                null, infoMessage, annotFeat.getName(), JOptionPane.ERROR_MESSAGE);
+    }
+    //out of bounds
+    private Integer outOFBounds(Boolean issueIsSalvageable, Integer featNum, SequenceAnnotation annotFeat) {
+        if (issueIsSalvageable) {
+            String infoMessage = "\nPrimer design failed for the verification pair.\n" +
+                    "The annotation feature  appears to be near the edge of the sequence.\n\n" +
+                    "Options:\n" +
+                    "- Run Primer3 again (try reducing the Distance Min and Max)\n" +
+                    "- Input sequences manually";
+            return launchSecondRound(infoMessage, annotFeat, featNum);
+        } else {
+            String infoMessage = "\nAll primer design failed.\n" +
+                    "The annotation feature is too close to the edge of the sequence.\n" +
+                    "There is no remedial action available for this feature/primer set.\n";
+            JOptionPane.showMessageDialog(
+                    null, infoMessage, annotFeat.getName(), JOptionPane.ERROR_MESSAGE);
+            return 0;
+        }
+    }
+    //parameters too stringent
+    private Integer parametersTooStringent(Integer featNum, SequenceAnnotation annotFeat) {
+        String infoMessage = "\nPrimer design failed for the verification pair.\n" +
+                "Parameters were too stringent.\n\n" +
+                "Options:\n" +
+                "- Run Primer3 again (try relaxing design constraints)\n" +
+                "- Input sequences manually";
+        return launchSecondRound(infoMessage, annotFeat, featNum);
+    }
+    //second round for realz
+    private Integer launchSecondRound(String infoMessage, SequenceAnnotation annotFeat, Integer featNum) {
+        Object[] options = {"Cancel", "Manual Input", "Run Primer3"};
+        int n = JOptionPane.showOptionDialog(null, infoMessage, annotFeat.getName(),
+                JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+        if (n == 0) {
+            //nothing happens
+            return 0;
+        } else if (n == 1) {
+            //offer manual design interface (how???)
+            return 0; //for now
+        } else if (n == 2) {
+            NovoPrimeDoOverOptions novoPrimeDoOverOptions = new NovoPrimeDoOverOptions(
+                    explainMSGs.get(featNum-1), annotFeat, codeLocation, baseID, offsetStart, offsetStop);
+            JPanel npPanel = novoPrimeDoOverOptions.createPanel();
+            Object[] npOptions = {"OK", "Cancel"};
+            int np = JOptionPane.showOptionDialog(null, npPanel, "Primer Design Parameters",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, null, npOptions, npOptions[0]);
+            if (np == 0) {
+                //OK -- run command and retrieve results
+                NovoPrimeDoOverOptions.DoOverOptions doOverOptions = novoPrimeDoOverOptions.getPrimerOptions();
+                ArrayList<ArrayList> verifResults = doOverOptions.makeVerifPair(
+                        annotFeat, featNum, "V", seqDoc.getSequenceString(), progress);
+                List<SequenceAnnotation> verifPrimerPair = verifResults.get(0);
+                ArrayList<String> verifExplainMsg = verifResults.get(1);
+                if (verifPrimerPair.get(0).getName().equals("dummy")) {
+                    //replace the error msg in the old list with the new one and TODO: return user to launchStatusDialog
+                    explainMSGs.set(featNum-1, verifExplainMsg);
+                    return -1;
+                } else {
+                    //replace the status msg and primer details in the old list and edit the table checkboxes (??)
+                    annotList.set(((featNum-1)*4)+2, verifPrimerPair.get(0));
+                    annotList.set(((featNum-1)*4)+3, verifPrimerPair.get(1));
+                    explainMSGs.set(featNum-1, verifExplainMsg);
+                    allValidityCheckList.set(featNum-1, true);
+                    return 1;
+                }
+            } else {
+                //nothing happens
+                return 0;
+            }
+        } else {
+            return 0;
+        }
+    }
+    
+    
     //classes for summary/second round interaction
 
     class ButtonRenderer extends JButton implements TableCellRenderer {
@@ -382,7 +500,10 @@ public class NovoPrimeLaunchers {
         public Object getCellEditorValue() {
             if (isPushed) {
                 Integer counter = Integer.parseInt(label);
-                launchSecondRound(counter);
+                Integer looper = -1;
+                while (looper != 0) {
+                    looper = launchStatusDialog(counter);
+                } //TODO: update table checkboxes
             }
             isPushed = false;
             return new String(label);
