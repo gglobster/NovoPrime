@@ -1,6 +1,5 @@
 package com.gggenomics.novoprime;
 
-import com.biomatters.geneious.publicapi.components.GEditorPane;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceDocument;
 import com.biomatters.geneious.publicapi.plugin.Options;
@@ -10,6 +9,7 @@ import jebl.util.CompositeProgressListener;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -56,6 +56,7 @@ public class NovoPrimeLaunchers {
     Integer offsetStart;
     Integer offsetStop;
     CompositeProgressListener progress;
+    JTable summaryTable;
 
     List<Boolean> allValidityCheckList = new ArrayList<Boolean>();
     List<Boolean> amplifValidityCheckList = new ArrayList<Boolean>();
@@ -201,8 +202,9 @@ public class NovoPrimeLaunchers {
         offsetStop = priorOffsetStop;
         progress = progressListener;
 
+
         final List<String> columnNames = new ArrayList<String>();
-        columnNames.add("Select");
+        columnNames.add("Status");
         columnNames.add("Locus Tag");
         columnNames.add("Type");
         columnNames.add("Location");
@@ -239,19 +241,19 @@ public class NovoPrimeLaunchers {
             allValidityCheckList.add(validatePrimerSet);
 
             Vector<Object> row = new Vector<Object>();
-            row.add(validatePrimerSet);
+            row.add(boolToIcon(validatePrimerSet, "annot"));
             row.add(oneAnnot.getName());
             row.add(oneAnnot.getType());
             row.add(oneAnnot.getIntervals());
-            row.add(validatePairA);
-            row.add(validatePairV);   //TODO: after adding redo feature for V primers, will need to update checkbox
+            row.add(boolToIcon(validatePairA, "pair"));
+            row.add(boolToIcon(validatePairV, "pair"));
             row.add(countP);
             myDataObjects.add(row);
             countP +=4;
         }
 
 
-        JTable table = new JTable(new AbstractTableModel() {
+        summaryTable = new JTable(new AbstractTableModel() {
 
             public int getRowCount() {
                 return myDataObjects.size();
@@ -265,15 +267,13 @@ public class NovoPrimeLaunchers {
             public String getColumnName(int col) {
                 return columnNames.get(col);
             }
-            //checkbox rendering enabler
+            //rendering enabler
             public Class getColumnClass(int c) {
                 return getValueAt(0, c).getClass();
             }
             //specifying which columns are editable
             public boolean isCellEditable(int row, int col) {
-                if (col == 0) {
-                    return true;
-                } else if (col == 6) {
+                if (col == 6) {
                     return true;
                 } else {
                     return false;
@@ -287,15 +287,14 @@ public class NovoPrimeLaunchers {
                 fireTableCellUpdated(row, col);
             }
         });
-
-        table.getColumn("Options").setCellRenderer(new ButtonRenderer());
-        table.getColumn("Options").setCellEditor(
+        summaryTable.getColumn("Options").setCellRenderer(new ButtonRenderer());
+        summaryTable.getColumn("Options").setCellEditor(
                 new ButtonEditor(new JCheckBox()));
-        table.setPreferredScrollableViewportSize(new Dimension(800, 400));
-        table.setFillsViewportHeight(true);
+        summaryTable.setPreferredScrollableViewportSize(new Dimension(800, 400));
+        summaryTable.setFillsViewportHeight(true);
         //create scroll pane for the table
-        JScrollPane summaryPane = new JScrollPane(table);
-        Object[] options = {"Confirm selection", "Cancel"};
+        JScrollPane summaryPane = new JScrollPane(summaryTable);
+        Object[] options = {"Save Primers", "Cancel"};
         int n = JOptionPane.showOptionDialog(null, summaryPane, "Primer Design Results Summary",
                 JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
         if (n == 0) {
@@ -405,31 +404,68 @@ public class NovoPrimeLaunchers {
             return 0;
         } else if (n == 1) {
             //offer manual design interface (how???)
-            return 0; //for now
+            NovoPrimeDoOverOptions novoPrimeDoOverOptions = new NovoPrimeDoOverOptions(seqDoc, featNum,
+                    explainMSGs.get(featNum-1), annotFeat, codeLocation, baseID, offsetStart, offsetStop, "manual");
+            JPanel manualPanel = novoPrimeDoOverOptions.createPanel();
+            Object[] npOptions = {"Save", "Cancel"};
+            int np = JOptionPane.showOptionDialog(null, manualPanel, "Manual Primer Design",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, null, npOptions, npOptions[0]);
+            if (np == 0) {
+                //OK -- retrieve and validate results
+                SequenceAnnotation fwdPrimer = novoPrimeDoOverOptions.fwdPrimerAnnot;
+                SequenceAnnotation revPrimer = novoPrimeDoOverOptions.revPrimerAnnot;
+                ArrayList<String> manualExplainMsg = new ArrayList<String>();
+                manualExplainMsg.add("Manual primer design completed successfully.");
+                if (fwdPrimer != null) {
+                    if (revPrimer != null) {
+                        annotList.set(((featNum-1)*4)+2, fwdPrimer);
+                        annotList.set(((featNum-1)*4)+3, revPrimer);
+                        explainMSGs.set(featNum - 1, manualExplainMsg);
+                        allValidityCheckList.set(featNum-1, true);
+                        summaryTable.setValueAt(boolToIcon(true, "annot"), featNum-1, 0);
+                        summaryTable.setValueAt(boolToIcon(true, "pair"), featNum - 1, 5);
+                        return 1;
+                    } else {
+                        JOptionPane.showMessageDialog(
+                                null, "No REV primer was specified.","Error",
+                                JOptionPane.ERROR_MESSAGE);
+                        return -1;
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(
+                            null, "No FWD primer was specified.", "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                    return -1;
+                }
+            } else {
+                return 0;
+            }
         } else if (n == 2) {
-            NovoPrimeDoOverOptions novoPrimeDoOverOptions = new NovoPrimeDoOverOptions(
-                    explainMSGs.get(featNum-1), annotFeat, codeLocation, baseID, offsetStart, offsetStop);
+            NovoPrimeDoOverOptions novoPrimeDoOverOptions = new NovoPrimeDoOverOptions(seqDoc, featNum,
+                    explainMSGs.get(featNum-1), annotFeat, codeLocation, baseID, offsetStart, offsetStop, "primer3");
             JPanel npPanel = novoPrimeDoOverOptions.createPanel();
-            Object[] npOptions = {"OK", "Cancel"};
-            int np = JOptionPane.showOptionDialog(null, npPanel, "Primer Design Parameters",
+            Object[] npOptions = {"Run", "Cancel"};
+            int np = JOptionPane.showOptionDialog(null, npPanel, "Primer3 Design Parameters",
                     JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, null, npOptions, npOptions[0]);
             if (np == 0) {
                 //OK -- run command and retrieve results
                 NovoPrimeDoOverOptions.DoOverOptions doOverOptions = novoPrimeDoOverOptions.getPrimerOptions();
                 ArrayList<ArrayList> verifResults = doOverOptions.makeVerifPair(
-                        annotFeat, featNum, "V", seqDoc.getSequenceString(), progress);
+                        annotFeat, featNum, "V", seqDoc.getSequenceString(), progress, seqDoc);
                 List<SequenceAnnotation> verifPrimerPair = verifResults.get(0);
                 ArrayList<String> verifExplainMsg = verifResults.get(1);
                 if (verifPrimerPair.get(0).getName().equals("dummy")) {
-                    //replace the error msg in the old list with the new one and TODO: return user to launchStatusDialog
+                    //replace the error msg in the old list with the new one and return user to launchStatusDialog
                     explainMSGs.set(featNum-1, verifExplainMsg);
                     return -1;
                 } else {
-                    //replace the status msg and primer details in the old list and edit the table checkboxes (??)
+                    //replace the status msg and primer details in the old list and edit the table checkboxes
                     annotList.set(((featNum-1)*4)+2, verifPrimerPair.get(0));
                     annotList.set(((featNum-1)*4)+3, verifPrimerPair.get(1));
-                    explainMSGs.set(featNum-1, verifExplainMsg);
+                    explainMSGs.set(featNum - 1, verifExplainMsg);
                     allValidityCheckList.set(featNum-1, true);
+                    summaryTable.setValueAt(boolToIcon(true, "annot"), featNum-1, 0);
+                    summaryTable.setValueAt(boolToIcon(true, "pair"), featNum-1, 5);
                     return 1;
                 }
             } else {
@@ -440,8 +476,26 @@ public class NovoPrimeLaunchers {
             return 0;
         }
     }
-    
-    
+
+    private Icon boolToIcon(Boolean value, String colType) {
+        Icon iconValue;
+        if (colType.equals("annot")) {
+            if (value) {
+                iconValue = IconUtilities.getIcons("addAnnotation16.png").getOriginalIcon();
+            } else {
+                iconValue = IconUtilities.getIcons("annotatePredict16.png").getOriginalIcon();
+            }
+        } else {
+            if (value) {
+                iconValue = IconUtilities.getIcons("tick16.png").getOriginalIcon();
+            } else {
+                iconValue = IconUtilities.getIcons("x16.png").getOriginalIcon();
+            }
+        }
+        return iconValue;
+    }
+
+
     //classes for summary/second round interaction
 
     class ButtonRenderer extends JButton implements TableCellRenderer {
@@ -459,7 +513,7 @@ public class NovoPrimeLaunchers {
                 setForeground(table.getForeground());
                 setBackground(UIManager.getColor("Button.background"));
             }
-            setText("view");
+            setText("more...");
             return this;
         }
     }
@@ -492,7 +546,7 @@ public class NovoPrimeLaunchers {
                 button.setBackground(table.getBackground());
             }
             label = (value == null) ? "" : value.toString();
-            button.setText("view");
+            button.setText("more...");
             isPushed = true;
             return button;
         }

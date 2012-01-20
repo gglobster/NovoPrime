@@ -1,5 +1,5 @@
 ##############################################################################
-### NovoPrime v. 0.3 (alpha)                                               ###
+### NovoPrime v. 0.4 (alpha)                                               ###
 ### Copyright 2012 Geraldine A. Van der Auwera                             ###
 ##############################################################################
 
@@ -7,12 +7,14 @@ This project consists of a Java plugin for the desktop application Geneious
 (http://www.geneious.com/). The NovoPrime plugin allows the automation of
 custom primer design for genetic recombination-based engineering.
 
-STATUS: The plugin is functional from start to finish. The last feature that
-needs work is the option for the user to redo primer design for features that
-failed the first pass.
+STATUS: The plugin is functional from start to finish. Further improvements may
+be introduced following user testing.
 
 BUGS: At the end, two "file save" dialogs pop up prompting the user to select
-an output file instead of just the one.
+an output file instead of just the one. This is caused by a known bug in the
+Geneious API FileUtilities.
+
+NOTE: This plugin requires 1.6 JRE or above.
 
 
 

@@ -1,12 +1,11 @@
 package com.gggenomics.novoprime;
 
-import com.biomatters.geneious.publicapi.components.MoreOptionsButton;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotation;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceAnnotationInterval;
 import com.biomatters.geneious.publicapi.documents.sequence.SequenceDocument;
-import com.biomatters.geneious.publicapi.plugin.Options;
+import com.biomatters.geneious.publicapi.plugin.*;
 import com.biomatters.geneious.publicapi.utilities.Execution;
-import com.biomatters.geneious.publicapi.utilities.IconUtilities;
+import com.biomatters.geneious.publicapi.utilities.SequenceUtilities;
 import jebl.util.CompositeProgressListener;
 import org.virion.jam.util.SimpleListener;
 
@@ -22,128 +21,134 @@ import java.util.regex.Pattern;
 public class NovoPrimeDoOverOptions extends Options {
 
     public NovoPrimeDoOverOptions(
+            final SequenceDocument seqDoc,
+            Integer featNum,
             ArrayList<String> messageList, 
-            SequenceAnnotation annotFeat, 
+            final SequenceAnnotation annotFeat,
             FileSelectionOption codeLocation,
             String baseID,
             Integer offsetStart,
-            Integer offsetStop) {
+            Integer offsetStop,
+            final String mode) {
 
-        featureDetails(annotFeat, baseID, offsetStart, offsetStop);
-        diagnosticMessage(messageList);
-        secondRoundVerifPrimersOptions(codeLocation);
+        featureDetails(seqDoc, featNum, annotFeat, baseID, offsetStart, offsetStop);
 
-        verifPrimerDistMinOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerDistMinOption.getValue() > verifPrimerDistOptimOption.getValue()) {
-                    verifPrimerDistOptimOption.setValue(verifPrimerDistMinOption.getValue());
+        if (mode.equals("primer3")) {
+
+            diagnosticMessage(messageList);
+            secondRoundVerifPrimersOptions(codeLocation);
+
+            verifPrimerDistMinOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerDistMinOption.getValue() > verifPrimerDistOptimOption.getValue()) {
+                        verifPrimerDistOptimOption.setValue(verifPrimerDistMinOption.getValue());
+                    }
+                    if (verifPrimerDistMinOption.getValue() > verifPrimerDistMaxOption.getValue()) {
+                        verifPrimerDistMaxOption.setValue(verifPrimerDistMinOption.getValue());
+                    }
                 }
-                if (verifPrimerDistMinOption.getValue() > verifPrimerDistMaxOption.getValue()) {
-                    verifPrimerDistMaxOption.setValue(verifPrimerDistMinOption.getValue());
+            });
+            verifPrimerDistOptimOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerDistOptimOption.getValue() > verifPrimerDistMaxOption.getValue()) {
+                        verifPrimerDistMaxOption.setValue(verifPrimerDistOptimOption.getValue());
+                    }
+                    if (verifPrimerDistOptimOption.getValue() < verifPrimerDistMinOption.getValue()) {
+                        verifPrimerDistMinOption.setValue(verifPrimerDistOptimOption.getValue());
+                    }
                 }
-            }
-        });
-        verifPrimerDistOptimOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerDistOptimOption.getValue() > verifPrimerDistMaxOption.getValue()) {
-                    verifPrimerDistMaxOption.setValue(verifPrimerDistOptimOption.getValue());
+            });
+            verifPrimerDistMaxOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerDistMaxOption.getValue() < verifPrimerDistOptimOption.getValue()) {
+                        verifPrimerDistOptimOption.setValue(verifPrimerDistMaxOption.getValue());
+                    }
+                    if (verifPrimerDistMaxOption.getValue() < verifPrimerDistMinOption.getValue()) {
+                        verifPrimerDistMinOption.setValue(verifPrimerDistMaxOption.getValue());
+                    }
                 }
-                if (verifPrimerDistOptimOption.getValue() < verifPrimerDistMinOption.getValue()) {
-                    verifPrimerDistMinOption.setValue(verifPrimerDistOptimOption.getValue());
+            });
+            verifPrimerLengthMinOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthOptimOption.getValue()) {
+                        verifPrimerLengthOptimOption.setValue(verifPrimerLengthMinOption.getValue());
+                    }
+                    if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
+                        verifPrimerLengthMaxOption.setValue(verifPrimerLengthMinOption.getValue());
+                    }
                 }
-            }
-        });
-        verifPrimerDistMaxOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerDistMaxOption.getValue() < verifPrimerDistOptimOption.getValue()) {
-                    verifPrimerDistOptimOption.setValue(verifPrimerDistMaxOption.getValue());
+            });
+            verifPrimerLengthOptimOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerLengthOptimOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
+                        verifPrimerLengthMaxOption.setValue(verifPrimerLengthOptimOption.getValue());
+                    }
+                    if (verifPrimerLengthOptimOption.getValue() < verifPrimerLengthMinOption.getValue()) {
+                        verifPrimerLengthMinOption.setValue(verifPrimerLengthOptimOption.getValue());
+                    }
                 }
-                if (verifPrimerDistMaxOption.getValue() < verifPrimerDistMinOption.getValue()) {
-                    verifPrimerDistMinOption.setValue(verifPrimerDistMaxOption.getValue());
+            });
+            verifPrimerLengthMaxOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthMinOption.getValue()) {
+                        verifPrimerLengthMinOption.setValue(verifPrimerLengthMaxOption.getValue());
+                    }
+                    if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthOptimOption.getValue()) {
+                        verifPrimerLengthOptimOption.setValue(verifPrimerLengthMaxOption.getValue());
+                    }
                 }
-            }
-        });
-        verifPrimerLengthMinOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthOptimOption.getValue()) {
-                    verifPrimerLengthOptimOption.setValue(verifPrimerLengthMinOption.getValue());
+            });
+            verifPrimerTmMinOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerTmMinOption.getValue() > verifPrimerTmOptimOption.getValue()) {
+                        verifPrimerTmOptimOption.setValue(verifPrimerTmMinOption.getValue());
+                    }
+                    if (verifPrimerTmMinOption.getValue() > verifPrimerTmMaxOption.getValue()) {
+                        verifPrimerTmMaxOption.setValue(verifPrimerTmMinOption.getValue());
+                    }
                 }
-                if (verifPrimerLengthMinOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
-                    verifPrimerLengthMaxOption.setValue(verifPrimerLengthMinOption.getValue());
+            });
+            verifPrimerTmOptimOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerTmOptimOption.getValue() > verifPrimerTmMaxOption.getValue()) {
+                        verifPrimerTmMaxOption.setValue(verifPrimerTmOptimOption.getValue());
+                    }
+                    if (verifPrimerTmOptimOption.getValue() < verifPrimerTmMinOption.getValue()) {
+                        verifPrimerTmMinOption.setValue(verifPrimerTmOptimOption.getValue());
+                    }
                 }
-            }
-        });
-        verifPrimerLengthOptimOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerLengthOptimOption.getValue() > verifPrimerLengthMaxOption.getValue()) {
-                    verifPrimerLengthMaxOption.setValue(verifPrimerLengthOptimOption.getValue());
+            });
+            verifPrimerTmMaxOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerTmMaxOption.getValue() < verifPrimerTmMinOption.getValue()) {
+                        verifPrimerTmMinOption.setValue(verifPrimerTmMaxOption.getValue());
+                    }
+                    if (verifPrimerTmMaxOption.getValue() < verifPrimerTmOptimOption.getValue()) {
+                        verifPrimerTmOptimOption.setValue(verifPrimerTmMaxOption.getValue());
+                    }
                 }
-                if (verifPrimerLengthOptimOption.getValue() < verifPrimerLengthMinOption.getValue()) {
-                    verifPrimerLengthMinOption.setValue(verifPrimerLengthOptimOption.getValue());
+            });
+            verifPrimerGCMinOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerGCMinOption.getValue() > verifPrimerGCOptimOption.getValue()) {
+                        verifPrimerGCOptimOption.setValue(verifPrimerGCMinOption.getValue());
+                    }
+                    if (verifPrimerGCMinOption.getValue() > verifPrimerGCMaxOption.getValue()) {
+                        verifPrimerGCMaxOption.setValue(verifPrimerGCMinOption.getValue());
+                    }
                 }
-            }
-        });
-        verifPrimerLengthMaxOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthMinOption.getValue()) {
-                    verifPrimerLengthMinOption.setValue(verifPrimerLengthMaxOption.getValue());
+            });
+            verifPrimerGCOptimOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (verifPrimerGCOptimOption.getValue() > verifPrimerGCMaxOption.getValue()) {
+                        verifPrimerGCMaxOption.setValue(verifPrimerGCOptimOption.getValue());
+                    }
+                    if (verifPrimerGCOptimOption.getValue() < verifPrimerGCMinOption.getValue()) {
+                        verifPrimerGCMinOption.setValue(verifPrimerGCOptimOption.getValue());
+                    }
                 }
-                if (verifPrimerLengthMaxOption.getValue() < verifPrimerLengthOptimOption.getValue()) {
-                    verifPrimerLengthOptimOption.setValue(verifPrimerLengthMaxOption.getValue());
-                }
-            }
-        });
-        verifPrimerTmMinOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerTmMinOption.getValue() > verifPrimerTmOptimOption.getValue()) {
-                    verifPrimerTmOptimOption.setValue(verifPrimerTmMinOption.getValue());
-                }
-                if (verifPrimerTmMinOption.getValue() > verifPrimerTmMaxOption.getValue()) {
-                    verifPrimerTmMaxOption.setValue(verifPrimerTmMinOption.getValue());
-                }
-            }
-        });
-        verifPrimerTmOptimOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerTmOptimOption.getValue() > verifPrimerTmMaxOption.getValue()) {
-                    verifPrimerTmMaxOption.setValue(verifPrimerTmOptimOption.getValue());
-                }
-                if (verifPrimerTmOptimOption.getValue() < verifPrimerTmMinOption.getValue()) {
-                    verifPrimerTmMinOption.setValue(verifPrimerTmOptimOption.getValue());
-                }
-            }
-        });
-        verifPrimerTmMaxOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerTmMaxOption.getValue() < verifPrimerTmMinOption.getValue()) {
-                    verifPrimerTmMinOption.setValue(verifPrimerTmMaxOption.getValue());
-                }
-                if (verifPrimerTmMaxOption.getValue() < verifPrimerTmOptimOption.getValue()) {
-                    verifPrimerTmOptimOption.setValue(verifPrimerTmMaxOption.getValue());
-                }
-            }
-        });
-        verifPrimerGCMinOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerGCMinOption.getValue() > verifPrimerGCOptimOption.getValue()) {
-                    verifPrimerGCOptimOption.setValue(verifPrimerGCMinOption.getValue());
-                }
-                if (verifPrimerGCMinOption.getValue() > verifPrimerGCMaxOption.getValue()) {
-                    verifPrimerGCMaxOption.setValue(verifPrimerGCMinOption.getValue());
-                }
-            }
-        });
-        verifPrimerGCOptimOption.addChangeListener(new SimpleListener() {
-            public void objectChanged() {
-                if (verifPrimerGCOptimOption.getValue() > verifPrimerGCMaxOption.getValue()) {
-                    verifPrimerGCMaxOption.setValue(verifPrimerGCOptimOption.getValue());
-                }
-                if (verifPrimerGCOptimOption.getValue() < verifPrimerGCMinOption.getValue()) {
-                    verifPrimerGCMinOption.setValue(verifPrimerGCOptimOption.getValue());
-                }
-            }
-        });
-        verifPrimerGCMaxOption.addChangeListener(new SimpleListener() {
+            });
+            verifPrimerGCMaxOption.addChangeListener(new SimpleListener() {
             public void objectChanged() {
                 if (verifPrimerGCMaxOption.getValue() < verifPrimerGCMinOption.getValue()) {
                     verifPrimerGCMinOption.setValue(verifPrimerGCMaxOption.getValue());
@@ -153,22 +158,270 @@ public class NovoPrimeDoOverOptions extends Options {
                 }
             }
         });
+
+        } else if (mode.equals("manual")) {
+            manualInputPickingZoneOptions();
+            setInitialDistState(seqDoc, annotFeat);
+            makePickingButtons();
+
+            verifPrimerDistMinOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (mode.equals("manual")){
+                        fwdPickZone = extractPickZone(seqDoc, annotFeat).get(0);
+                        revPickZone = extractPickZone(seqDoc, annotFeat).get(1);
+                    }
+                    if (verifPrimerDistMinOption.getValue() > verifPrimerDistMaxOption.getValue()) {
+                        verifPrimerDistMaxOption.setValue(verifPrimerDistMinOption.getValue());
+                    }
+                }
+            });
+            verifPrimerDistMaxOption.addChangeListener(new SimpleListener() {
+                public void objectChanged() {
+                    if (mode.equals("manual")) {
+                        fwdPickZone = extractPickZone(seqDoc, annotFeat).get(0);
+                        revPickZone = extractPickZone(seqDoc, annotFeat).get(1);
+                    }
+                    if (verifPrimerDistMaxOption.getValue() < verifPrimerDistMinOption.getValue()) {
+                        verifPrimerDistMinOption.setValue(verifPrimerDistMaxOption.getValue());
+                    }
+                }
+            });
+        }
+
     }
 
     NovoPrimeLaunchers novoPrimeLaunchers = new NovoPrimeLaunchers();
 
-    //SequenceDocument seqDoc;
     FileSelectionOption codeLocation;
     String baseID;
+    String primerBaseName;
     Integer offsetStart;
     Integer offsetStop;
 
+    SequenceDocument seqDoc;
+
+    String fwdPickZone;
+    String revPickZone;
+    String fwdPickPrimer;
+    String revPickPrimer;
+
+    SequenceAnnotation fwdPrimerAnnot;
+    SequenceAnnotation revPrimerAnnot;
+
+    JLabel actionFwd = new JLabel(fwdPickPrimer);
+    JLabel actionRev = new JLabel(revPickPrimer);
+    JLabel actionProximityWarning = new JLabel("The Min and Max Distance must fall within the sequence");
+
+    //initial state
+    private void setInitialDistState(SequenceDocument sequenceDocument, SequenceAnnotation annotFeat) {
+        seqDoc = sequenceDocument;
+        fwdPickZone = extractPickZone(seqDoc, annotFeat).get(0);
+        revPickZone = extractPickZone(seqDoc, annotFeat).get(1);
+    }
+
+    //extract pick zone
+    private List<String> extractPickZone(SequenceDocument seqDoc, SequenceAnnotation annotFeature) {
+
+        List<String> pickZones = new ArrayList<String>();
+        String direction = annotFeature.getIntervals().get(0).getDirection().toString();
+
+        Integer featStart;
+        Integer featStop;
+
+        Integer fwdLeftBound;
+        Integer fwdRightBound;
+        Integer revLeftBound;
+        Integer revRightBound;
+
+        //calculate coordinate points
+        if (direction.equals("leftToRight")) {
+            //define feature start & stop
+            featStart = annotFeature.getIntervals().get(0).getFrom();
+            featStop = featStart+annotFeature.getIntervals().get(0).getLength();
+            //forward primer boundaries
+            fwdLeftBound = featStart+offsetStart-verifPrimerDistMaxOption.getValue();
+            if (fwdLeftBound < 1) {
+                fwdLeftBound = 1;
+            }
+            fwdRightBound = featStart+offsetStart-verifPrimerDistMinOption.getValue();
+            if (fwdRightBound < 2) {
+                fwdRightBound = 2;
+            }
+            //reverse primer boundaries
+            revLeftBound = featStop+offsetStop+verifPrimerDistMinOption.getValue();
+            if (revLeftBound > seqDoc.getSequenceString().length()-2) {
+                revLeftBound = seqDoc.getSequenceString().length()-2;
+            }
+            revRightBound = featStop+offsetStop+verifPrimerDistMaxOption.getValue();
+            if (revRightBound > seqDoc.getSequenceString().length()-1) {
+                revRightBound = seqDoc.getSequenceString().length()-1;
+            }
+            //determine pick zone boundaries
+            fwdPickZone = seqDoc.getSequenceString().substring(fwdLeftBound, fwdRightBound);
+            revPickZone = SequenceUtilities.reverseComplement(
+                    seqDoc.getCharSequence().subSequence(revLeftBound, revRightBound)).toString();
+        } else { //if (direction.equals("rightToLeft")) {    //TODO: handle "no direction" case
+            //define feature start & stop
+            featStart = annotFeature.getIntervals().get(0).getFrom();
+            featStop = featStart-annotFeature.getIntervals().get(0).getLength();
+            //forward primer boundaries
+            fwdLeftBound = featStart-offsetStart+verifPrimerDistMinOption.getValue();
+            if (fwdLeftBound > seqDoc.getSequenceString().length()-2) {
+                fwdLeftBound = seqDoc.getSequenceString().length()-2;
+            }
+            fwdRightBound = featStart-offsetStart+verifPrimerDistMaxOption.getValue();
+            if (fwdRightBound > seqDoc.getSequenceString().length()-1) {
+                fwdRightBound = seqDoc.getSequenceString().length()-1;
+            }
+            //reverse primer boundaries
+            revLeftBound = featStop-offsetStop-verifPrimerDistMaxOption.getValue();
+            if (revLeftBound < 1) {
+                revLeftBound = 1;
+            }
+            revRightBound = featStop-offsetStop-verifPrimerDistMinOption.getValue();
+            if (revRightBound < 2) {
+                revRightBound = 2;
+            }
+            //determine pick zone boundaries
+            fwdPickZone = SequenceUtilities.reverseComplement(
+                    seqDoc.getCharSequence().subSequence(fwdLeftBound, fwdRightBound)).toString();
+            revPickZone = seqDoc.getSequenceString().substring(revLeftBound, revRightBound);
+        }
+        pickZones.add(fwdPickZone);
+        pickZones.add(revPickZone);
+        return pickZones;
+    }
+    
+    //load picking buttons
+    private void makePickingButtons() {
+        addDivider("Pick Primers");
+        beginAlignHorizontally("", false);
+        addCustomComponent(getFwdPickButton());
+        addCustomComponent(actionFwd);
+        endAlignHorizontally();
+        beginAlignHorizontally("", false);
+        addCustomComponent(getRevPickButton());
+        addCustomComponent(actionRev);
+        endAlignHorizontally();
+    }
+
+    //forward picking button
+    private JComponent getFwdPickButton() {
+        return new JButton(new AbstractAction("Pick FWD...") {
+            public void actionPerformed(ActionEvent e) {
+                launchManualPicking(fwdPickZone, "fwd");
+
+            }
+        });
+    }
+    //reverse picking button
+    private JComponent getRevPickButton() {
+        return new JButton(new AbstractAction("Pick REV...") {
+            public void actionPerformed(ActionEvent e) {
+                launchManualPicking(revPickZone, "rev");
+            }
+        });
+    }
+
+    //manual picking launcher
+    private void launchManualPicking(String pickZone, String side) {
+        JPanel pickingPane = new JPanel();
+        pickingPane.setLayout(new BoxLayout(pickingPane, BoxLayout.PAGE_AXIS));
+        pickingPane.add(new JLabel("The selected picking zone is shown in the correct orientation."));
+        pickingPane.add(new JLabel("Copy the desired primer sequence and paste it into the box below."));
+        pickingPane.add(new JToolBar.Separator());
+        JTextArea pickZoneText = new JTextArea(pickZone);
+        pickZoneText.setLineWrap(true);
+        pickZoneText.setEditable(false);
+        JScrollPane scrollPane = new JScrollPane(pickZoneText);
+        scrollPane.setPreferredSize(new Dimension(500, 200));
+        pickingPane.add(scrollPane);
+        pickingPane.add(new JToolBar.Separator());
+        JTextField primerSeq = new JTextField(null, "", 0);
+        primerSeq.setPreferredSize(new Dimension(150, 25));
+        pickingPane.add(primerSeq);
+        Object[] options = {"Save Primer", "Cancel"};
+        int n = JOptionPane.showOptionDialog(null, pickingPane, "Manual Primer Selection",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+        if (n == 0) {
+            CharSequence tempPrimer = primerSeq.getText();
+            //find the match position of the primer to the sequence
+            Integer firstIndex = seqDoc.getSequenceString().indexOf(tempPrimer.toString());
+            if (firstIndex != -1) {
+                Integer lastIndex = seqDoc.getSequenceString().lastIndexOf(tempPrimer.toString());
+                if (firstIndex.equals(lastIndex)) {  //make sure there is only one match
+                    savePrimer(firstIndex, tempPrimer.toString(), side,  true);
+                } else {
+                    JOptionPane.showMessageDialog(
+                            null, "The chosen primer matches the sequence in multiple places.\n" +
+                            "Please select a different "+side.toUpperCase()+" primer sequence.", "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            } else {   //try the reverse-complement
+                firstIndex = seqDoc.getSequenceString().indexOf(
+                        SequenceUtilities.reverseComplement(tempPrimer).toString());
+                if (firstIndex != -1) {
+                    Integer lastIndex = seqDoc.getSequenceString().lastIndexOf(
+                            SequenceUtilities.reverseComplement(tempPrimer).toString());
+                    if (firstIndex.equals(lastIndex)) {  //make sure there is only one match
+                        savePrimer(firstIndex, tempPrimer.toString(), side, false);
+                    } else {
+                        JOptionPane.showMessageDialog(
+                                null, "The chosen primer matches the sequence in multiple places.\n" +
+                                "Please select a different "+side.toUpperCase()+" primer sequence.", "Error",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                } else {
+                    JOptionPane.showMessageDialog(
+                            null, "The chosen primer did not match any of the sequence.\n" +
+                            "Please select a different "+side.toUpperCase()+" primer sequence.", "Error",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        } else {
+            //nothing happens
+        }
+    }
+    //actually save the primers and make seqAnnots
+    private void savePrimer(Integer index, String tempPrimer, String side, Boolean direct) {
+        Integer pStart;
+        Integer pStop;
+        System.out.println(tempPrimer);
+        //determine coordinates
+        if (direct) {
+            pStart = index+1;
+            pStop = index+tempPrimer.length();
+        } else {
+            pStop = index+1;
+            pStart = index+tempPrimer.length();
+        }
+        //create the primer annotation
+        SequenceAnnotation tempPrimerAnnot = new SequenceAnnotation(
+                    primerBaseName+"M_"+side,
+                    SequenceAnnotation.TYPE_PRIMER_BIND,
+                    new SequenceAnnotationInterval(
+                            pStart, pStop));
+        //determine name
+        if (side.equals("fwd")){
+            fwdPrimerAnnot = tempPrimerAnnot;
+            fwdPickPrimer = tempPrimer;
+            actionFwd.setText(fwdPickPrimer);
+        } else {
+            revPrimerAnnot = tempPrimerAnnot;
+            revPickPrimer = tempPrimer;
+            actionRev.setText(revPickPrimer);
+        }
+    }
+
     //display feature details
-    private void featureDetails(SequenceAnnotation annotFeat,
+    private void featureDetails(SequenceDocument seqDoc,
+                                Integer featNum,
+                                SequenceAnnotation annotFeat,
                                 String priorBaseID,
                                 Integer priorOffsetStart,
                                 Integer priorOffsetStop) {
         baseID = priorBaseID;
+        primerBaseName = baseID+"_"+annotFeat.getName().replace(" ", ".")+"_V"+featNum;   //for later
         offsetStart = priorOffsetStart;
         offsetStop = priorOffsetStop;
         addDivider("Target Details");
@@ -187,9 +440,10 @@ public class NovoPrimeDoOverOptions extends Options {
             addLabel(annotFeat.getIntervals().get(0).getDirection().toArrowString());
             addLabel(featStart.toString());
         }
+        addLabel("/ "+seqDoc.getSequenceLength()+" bp");
         endAlignHorizontally();
         beginAlignHorizontally("Offset: ", false);
-        addLabel("start "+offsetStart.toString()+" / stop "+offsetStop.toString());
+        addLabel("start "+offsetStart.toString()+" -//- stop "+offsetStop.toString());
         endAlignHorizontally();
     }
     //display Primer3 diagnostics messages for info
@@ -232,10 +486,20 @@ public class NovoPrimeDoOverOptions extends Options {
         }
     }
 
-    //tweak verification primers parameters
+    //set up the primer picking zone
     private IntegerOption verifPrimerDistMinOption;
-    private IntegerOption verifPrimerDistOptimOption;
     private IntegerOption verifPrimerDistMaxOption;
+    private void manualInputPickingZoneOptions() {
+        addDivider("Picking zone");
+        beginAlignHorizontally("Distance Min:", false);
+        verifPrimerDistMinOption = addIntegerOption("verifPrimerDistMin", "", 400, 0, 5000);
+        verifPrimerDistMaxOption = addIntegerOption("verifPrimerDistMax", "Max:", 600, 0, 5000);
+        endAlignHorizontally();
+        addCustomComponent(actionProximityWarning);
+    }
+
+    //tweak verification primers parameters
+    private IntegerOption verifPrimerDistOptimOption;
     private IntegerOption verifPrimerLengthMinOption;
     private IntegerOption verifPrimerLengthOptimOption;
     private IntegerOption verifPrimerLengthMaxOption;
@@ -252,6 +516,8 @@ public class NovoPrimeDoOverOptions extends Options {
         verifPrimerDistOptimOption = addIntegerOption("verifPrimerDistOptim", "Optimal:", 500, 0, 5000);
         verifPrimerDistMaxOption = addIntegerOption("verifPrimerDistMax", "Max:", 600, 0, 5000);
         endAlignHorizontally();
+        addCustomComponent(actionProximityWarning);
+        addDivider("");
         beginAlignHorizontally("Length Min:", false);
         verifPrimerLengthMinOption = addIntegerOption("verifPrimerLengthMin", "", 18, 0, 100);
         verifPrimerLengthOptimOption = addIntegerOption("verifPrimerLengthOptim", "Optimal:", 20, 0, 100);
@@ -326,7 +592,7 @@ public class NovoPrimeDoOverOptions extends Options {
 
         public ArrayList<ArrayList> makeVerifPair(
                 SequenceAnnotation annotFeature, Integer index, String type, String seqString,
-                CompositeProgressListener progressListener) {
+                CompositeProgressListener progressListener, SequenceDocument seqDoc) {
 
             ArrayList<ArrayList> resultsPairPlusExplain = new ArrayList<ArrayList>();
 
@@ -353,10 +619,22 @@ public class NovoPrimeDoOverOptions extends Options {
                 featStop = featStart+annotFeature.getIntervals().get(0).getLength();
                 //forward primer boundaries
                 fwdLeftBound = featStart+offsetStart-distMax;
+                if (fwdLeftBound < 1) {
+                    fwdLeftBound = 1;
+                }
                 fwdRightBound = featStart+offsetStart-distMin;
+                if (fwdRightBound < 2) {
+                    fwdRightBound = 2;
+                }
                 //reverse primer boundaries
                 revLeftBound = featStop+offsetStop+distMin;
+                if (revLeftBound > seqDoc.getSequenceString().length()-2) {
+                    revLeftBound = seqDoc.getSequenceString().length()-2;
+                }
                 revRightBound = featStop+offsetStop+distMax;
+                if (revRightBound > seqDoc.getSequenceString().length()-1) {
+                    revRightBound = seqDoc.getSequenceString().length()-1;
+                }
                 //establish overall regions
                 actualLeftBound = fwdLeftBound;
                 actualRightBound = revRightBound;
@@ -370,10 +648,22 @@ public class NovoPrimeDoOverOptions extends Options {
                 featStop = featStart-annotFeature.getIntervals().get(0).getLength();
                 //forward primer boundaries
                 fwdLeftBound = featStart-offsetStart+distMin;
+                if (fwdLeftBound > seqDoc.getSequenceString().length()-2) {
+                    fwdLeftBound = seqDoc.getSequenceString().length()-2;
+                }
                 fwdRightBound = featStart-offsetStart+distMax;
+                if (fwdRightBound > seqDoc.getSequenceString().length()-1) {
+                    fwdRightBound = seqDoc.getSequenceString().length()-1;
+                }
                 //reverse primer boundaries
                 revLeftBound = featStop-offsetStop-distMax;
+                if (revLeftBound < 1) {
+                    revLeftBound = 1;
+                }
                 revRightBound = featStop-offsetStop-distMin;
+                if (revRightBound < 2) {
+                    revRightBound = 2;
+                }
                 //establish overall regions
                 actualLeftBound = revLeftBound;
                 actualRightBound = fwdRightBound;
@@ -474,7 +764,7 @@ public class NovoPrimeDoOverOptions extends Options {
 
                     //forward primer
                     SequenceAnnotation fwdPrimer = new SequenceAnnotation(
-                            baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_fwd",
+                            primerBaseName+"T_fwd",
                             SequenceAnnotation.TYPE_PRIMER_BIND,
                             new SequenceAnnotationInterval(
                                     fwdStart, fwdStop)
@@ -483,7 +773,7 @@ public class NovoPrimeDoOverOptions extends Options {
 
                     //reverse primer
                     SequenceAnnotation revPrimer = new SequenceAnnotation(
-                            baseID+"_"+annotFeature.getName().replace(" ", ".")+"_"+type+index+"_rev",
+                            primerBaseName+"T_rev",
                             SequenceAnnotation.TYPE_PRIMER_BIND,
                             new SequenceAnnotationInterval(
                                     revStart, revStop)

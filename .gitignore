@@ -1,4 +1,6 @@
 
+classes/**
+
 classes/com/biomatters/exampleSequenceAnnotationGeneratorPlugin/ExampleSequenceAnnotationGenerator$ExampleSequenceAnnotationGeneratorOptions.class
 
 classes/com/biomatters/exampleSequenceAnnotationGeneratorPlugin/ExampleSequenceAnnotationGenerator$1.class
@@ -43,21 +45,9 @@ classes/com/gggenomics/novoprime/NovoPrimeExecutionOutputListener.class
 
 classes/com/gggenomics/novoprime/NovoPrimeAnnotationGenerator.class
 
-src/com/gggenomics/novoprime/NovoPrimeAnnotationGenerator.java
-
-src/com/gggenomics/novoprime/NovoPrimeAnnotationGenerator.java
-
-src/com/gggenomics/novoprime/NovoPrimeExecutionOutputListener.java
-
-src/com/gggenomics/novoprime/NovoPrimeExecutionOutputListener.java
-
 classes/com/gggenomics/novoprime/NovoPrimeOptions$PrimerOptions.class
 
-src/com/gggenomics/novoprime/NovoPrimeOptions.java
-
 build/NovoPrime.jar.gplugin
-
-src/com/gggenomics/novoprime/NovoPrimeAnnotationGenerator.java
 
 classes/com/gggenomics/novoprime/NovoPrimeAnnotationGenerator$1.class
 
@@ -87,4 +77,32 @@ classes/com/gggenomics/novoprime/NovoPrimeLaunchers$ButtonRenderer.class
 
 classes/com/gggenomics/novoprime/NovoPrimeLaunchers.class
 
-.gitignore
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$10.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$11.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$12.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$13.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$14.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$15.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$3.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$4.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$9.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$6.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$5.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$7.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$2.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$8.class
+
+classes/com/gggenomics/novoprime/NovoPrimeDoOverOptions$16.class

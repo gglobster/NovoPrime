@@ -32,7 +32,7 @@ public class NovoPrimePlugin extends GeneiousPlugin {
     }
 
     public String getVersion() {
-        return "0.3";
+        return "0.4";
     }
 
     public String getMinimumApiVersion() {
@@ -43,3 +43,5 @@ public class NovoPrimePlugin extends GeneiousPlugin {
         return 4;
     }
 }
+
+//TODO: JRE version check
